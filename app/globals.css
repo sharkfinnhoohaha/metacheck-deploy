@@ -85,6 +85,7 @@
   background: linear-gradient(135deg, var(--color-accent), transparent 60%);
   -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
   -webkit-mask-composite: xor;
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
   mask-composite: exclude;
   pointer-events: none;
 }
@@ -95,3 +96,13 @@
   50% { opacity: 0.6; }
 }
 .pulse-soft { animation: pulse-soft 2s ease-in-out infinite; }
+
+/* Thin scrollbar for result lists */
+.scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border-bright) transparent;
+}
+/* Safari / WebKit fallback */
+.scrollbar-thin::-webkit-scrollbar { width: 4px; }
+.scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
+.scrollbar-thin::-webkit-scrollbar-thumb { background-color: var(--color-border-bright); border-radius: 2px; }

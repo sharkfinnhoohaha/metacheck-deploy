@@ -69,10 +69,19 @@ const FIELDS: { key: keyof TrackMeta; label: string; placeholder?: string; requi
 ];
 
 // ── Severity badge styles ─────────────────────────────────────────────────────
-const SEV: Record<string, { badge: string; dot: string; border: string }> = {
-  critical: { badge: "text-[#fda4af] bg-red-950/40", dot: "#f43f5e", border: "border-red-500/20" },
-  warning: { badge: "text-[#fcd34d] bg-amber-950/40", dot: "#f59e0b", border: "border-amber-500/20" },
-  suggestion: { badge: "text-[#93c5fd] bg-blue-950/40", dot: "#3b82f6", border: "border-blue-500/20" },
+const SEV: Record<string, { badge: string; dotClass: string; border: string }> = {
+  critical: { badge: "text-[#fda4af] bg-red-950/40", dotClass: "bg-rose-500", border: "border-red-500/20" },
+  warning: { badge: "text-[#fcd34d] bg-amber-950/40", dotClass: "bg-amber-500", border: "border-amber-500/20" },
+  suggestion: { badge: "text-[#93c5fd] bg-blue-950/40", dotClass: "bg-blue-500", border: "border-blue-500/20" },
+};
+
+// ── Grade display classes ─────────────────────────────────────────────
+const GRADE_DISPLAY: Record<string, { text: string; bg: string }> = {
+  A: { text: "text-green-500", bg: "bg-green-950/60" },
+  B: { text: "text-lime-500", bg: "bg-lime-950/60" },
+  C: { text: "text-yellow-500", bg: "bg-yellow-950/60" },
+  D: { text: "text-orange-500", bg: "bg-orange-950/60" },
+  F: { text: "text-rose-500", bg: "bg-rose-950/60" },
 };
 
 // ── TrackForm component ───────────────────────────────────────────────────────
@@ -130,7 +139,7 @@ function ResultCard({
     <div className={`rounded-lg border p-4 ${s.border} bg-bg-elevated`}>
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-start gap-3 flex-1 min-w-0">
-          <span className="mt-0.5 w-2 h-2 rounded-full shrink-0" style={{ background: s.dot }} />
+          <span className={`mt-0.5 w-2 h-2 rounded-full shrink-0 ${s.dotClass}`} />
           <div className="min-w-0">
             <div className="flex items-center gap-2 flex-wrap mb-1">
               <span className={`text-xs font-mono px-2 py-0.5 rounded ${s.badge}`}>
@@ -358,6 +367,7 @@ export default function ValidatePage() {
               ref={fileInputRef}
               type="file"
               accept=".csv"
+              aria-label="Upload CSV file"
               className="hidden"
               onChange={handleCsvUpload}
             />
@@ -413,8 +423,7 @@ export default function ValidatePage() {
           {/* Grade card */}
           <div className="rounded-xl border border-border bg-bg-card p-6 flex items-center gap-6">
             <div
-              className="w-20 h-20 rounded-2xl flex items-center justify-center text-5xl font-bold font-display shrink-0"
-              style={{ background: grade.bg, color: grade.color }}
+              className={`w-20 h-20 rounded-2xl flex items-center justify-center text-5xl font-bold font-display shrink-0 ${GRADE_DISPLAY[grade.letter]?.bg ?? "bg-surface"} ${GRADE_DISPLAY[grade.letter]?.text ?? "text-text-muted"}`}
             >
               {grade.letter}
             </div>

@@ -6,10 +6,18 @@ import type { ValidationResult } from "@/lib/validation/types";
 import { getGrade } from "@/lib/validation/rules";
 import { ReleaseActions } from "./_components/ReleaseActions";
 
-const SEV_STYLES: Record<string, { badge: string; border: string; dot: string }> = {
-  critical: { badge: "text-[#fda4af] bg-red-950/40", border: "border-red-500/20", dot: "#f43f5e" },
-  warning: { badge: "text-[#fcd34d] bg-amber-950/40", border: "border-amber-500/20", dot: "#f59e0b" },
-  suggestion: { badge: "text-[#93c5fd] bg-blue-950/40", border: "border-blue-500/20", dot: "#3b82f6" },
+const GRADE_DISPLAY: Record<string, { text: string; bg: string }> = {
+  A: { text: "text-green-500", bg: "bg-green-950/60" },
+  B: { text: "text-lime-500", bg: "bg-lime-950/60" },
+  C: { text: "text-yellow-500", bg: "bg-yellow-950/60" },
+  D: { text: "text-orange-500", bg: "bg-orange-950/60" },
+  F: { text: "text-rose-500", bg: "bg-rose-950/60" },
+};
+
+const SEV_STYLES: Record<string, { badge: string; border: string; dotClass: string }> = {
+  critical: { badge: "text-[#fda4af] bg-red-950/40", border: "border-red-500/20", dotClass: "bg-rose-500" },
+  warning: { badge: "text-[#fcd34d] bg-amber-950/40", border: "border-amber-500/20", dotClass: "bg-amber-500" },
+  suggestion: { badge: "text-[#93c5fd] bg-blue-950/40", border: "border-blue-500/20", dotClass: "bg-blue-500" },
 };
 
 export default async function ReleaseDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -46,8 +54,7 @@ export default async function ReleaseDetailPage({ params }: { params: Promise<{ 
       {/* Grade card */}
       <div className="rounded-xl border border-border bg-bg-card p-6 flex items-center gap-6 mb-6">
         <div
-          className="w-20 h-20 rounded-2xl flex items-center justify-center text-5xl font-bold font-display shrink-0"
-          style={{ background: grade.bg, color: grade.color }}
+          className={`w-20 h-20 rounded-2xl flex items-center justify-center text-5xl font-bold font-display shrink-0 ${GRADE_DISPLAY[grade.letter]?.bg ?? "bg-surface"} ${GRADE_DISPLAY[grade.letter]?.text ?? "text-text-muted"}`}
         >
           {grade.letter}
         </div>
@@ -83,7 +90,7 @@ export default async function ReleaseDetailPage({ params }: { params: Promise<{ 
               {items.map((result, i) => (
                 <div key={i} className={`rounded-lg border p-4 ${styles.border} bg-bg-elevated`}>
                   <div className="flex items-start gap-3">
-                    <span className="mt-1 w-2 h-2 rounded-full shrink-0" style={{ background: styles.dot }} />
+                    <span className={`mt-1 w-2 h-2 rounded-full shrink-0 ${styles.dotClass}`} />
                     <div>
                       <div className="flex items-center gap-2 flex-wrap mb-1">
                         <span className={`text-xs font-mono px-2 py-0.5 rounded ${styles.badge}`}>{result.severity}</span>

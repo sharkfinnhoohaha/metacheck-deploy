@@ -26,8 +26,12 @@ export default async function DashboardPage() {
   const validationLimit = tier === "free" ? 3 : null;
   const aiLimit = tier === "free" ? 0 : tier === "pro" ? 300 : 1500;
 
-  const gradeColor: Record<string, string> = {
-    A: "#22c55e", B: "#84cc16", C: "#eab308", D: "#f97316", F: "#f43f5e",
+  const GRADE_CLASSES: Record<string, { text: string; bg: string }> = {
+    A: { text: "text-green-500", bg: "bg-green-500/10" },
+    B: { text: "text-lime-500", bg: "bg-lime-500/10" },
+    C: { text: "text-yellow-500", bg: "bg-yellow-500/10" },
+    D: { text: "text-orange-500", bg: "bg-orange-500/10" },
+    F: { text: "text-rose-500", bg: "bg-rose-500/10" },
   };
 
   return (
@@ -51,6 +55,7 @@ export default async function DashboardPage() {
           </p>
           {validationLimit && (
             <div className="mt-3 h-1.5 rounded-full bg-surface overflow-hidden">
+              {/* eslint-disable-next-line react/forbid-dom-props */}
               <div
                 className="h-full rounded-full bg-accent transition-all"
                 style={{ width: `${Math.min((validations / validationLimit) * 100, 100)}%` }}
@@ -79,7 +84,7 @@ export default async function DashboardPage() {
         {/* Plan */}
         <div className="rounded-xl border border-border bg-bg-card p-5">
           <p className="text-xs font-mono text-text-dim mb-3 uppercase tracking-widest">Current plan</p>
-          <p className="text-2xl font-bold font-mono capitalize" style={{ color: tier === "free" ? "#8a8a95" : "#14b8a6" }}>
+          <p className={`text-2xl font-bold font-mono capitalize ${tier === "free" ? "text-text-muted" : "text-accent-bright"}`}>
             {tier}
           </p>
           {tier === "free" && (
@@ -131,8 +136,7 @@ export default async function DashboardPage() {
                 }`}
               >
                 <div
-                  className="w-10 h-10 rounded-lg flex items-center justify-center text-lg font-bold font-display shrink-0"
-                  style={{ background: `${gradeColor[r.grade] ?? "#8a8a95"}20`, color: gradeColor[r.grade] ?? "#8a8a95" }}
+                  className={`w-10 h-10 rounded-lg flex items-center justify-center text-lg font-bold font-display shrink-0 ${GRADE_CLASSES[r.grade]?.bg ?? "bg-surface"} ${GRADE_CLASSES[r.grade]?.text ?? "text-text-muted"}`}
                 >
                   {r.grade ?? "?"}
                 </div>

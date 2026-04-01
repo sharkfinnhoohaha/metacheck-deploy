@@ -2,6 +2,7 @@ import { auth } from "@clerk/nextjs/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { trackUsage } from "@/lib/auth/index";
 import { AI_FIX_SYSTEM_PROMPT } from "@/lib/ai/prompts";
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
@@ -55,8 +56,7 @@ export async function POST(req: Request) {
   const { tracks, results } = parsed.data;
 
   // Track AI usage
-  const month = new Date().toISOString().slice(0, 7); // YYYY-MM
-  await supabaseAdmin.rpc("increment_ai_calls", { p_clerk_id: userId, p_month: month }).maybeSingle();
+  await trackUsage(userId, "ai_call");
 
   try {
     const message = await client.messages.create({

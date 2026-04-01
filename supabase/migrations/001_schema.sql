@@ -43,11 +43,12 @@ ALTER TABLE usage ENABLE ROW LEVEL SECURITY;
 ALTER TABLE releases ENABLE ROW LEVEL SECURITY;
 
 -- Users can only read/write their own data
+-- Uses auth.jwt() ->> 'sub' which reads the Clerk user ID from the JWT sub claim
 CREATE POLICY "users_own" ON users
-  FOR ALL USING (clerk_id = current_user);
+  FOR ALL USING (clerk_id = (auth.jwt() ->> 'sub'));
 
 CREATE POLICY "usage_own" ON usage
-  FOR ALL USING (clerk_id = current_user);
+  FOR ALL USING (clerk_id = (auth.jwt() ->> 'sub'));
 
 CREATE POLICY "releases_own" ON releases
-  FOR ALL USING (clerk_id = current_user);
+  FOR ALL USING (clerk_id = (auth.jwt() ->> 'sub'));

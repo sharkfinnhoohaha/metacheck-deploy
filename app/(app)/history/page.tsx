@@ -2,8 +2,12 @@ import { auth } from "@clerk/nextjs/server";
 import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
 
-const gradeColor: Record<string, string> = {
-  A: "#22c55e", B: "#84cc16", C: "#eab308", D: "#f97316", F: "#f43f5e",
+const GRADE_CLASSES: Record<string, { text: string; bg: string }> = {
+  A: { text: "text-green-500", bg: "bg-green-500/10" },
+  B: { text: "text-lime-500", bg: "bg-lime-500/10" },
+  C: { text: "text-yellow-500", bg: "bg-yellow-500/10" },
+  D: { text: "text-orange-500", bg: "bg-orange-500/10" },
+  F: { text: "text-rose-500", bg: "bg-rose-500/10" },
 };
 
 export default async function HistoryPage() {
@@ -85,8 +89,7 @@ export default async function HistoryPage() {
               }`}
             >
               <div
-                className="w-9 h-9 rounded-lg flex items-center justify-center text-base font-bold font-display"
-                style={{ background: `${gradeColor[r.grade] ?? "#8a8a95"}20`, color: gradeColor[r.grade] ?? "#8a8a95" }}
+                className={`w-9 h-9 rounded-lg flex items-center justify-center text-base font-bold font-display ${GRADE_CLASSES[r.grade]?.bg ?? "bg-surface"} ${GRADE_CLASSES[r.grade]?.text ?? "text-text-muted"}`}
               >
                 {r.grade ?? "?"}
               </div>

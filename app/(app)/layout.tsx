@@ -9,7 +9,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   return (
     <div className="min-h-screen flex">
       <Sidebar />
-      <main className="flex-1 overflow-y-auto" style={{ marginLeft: 240 }}>
+      <main className="flex-1 overflow-y-auto ml-60">
         {children}
       </main>
     </div>

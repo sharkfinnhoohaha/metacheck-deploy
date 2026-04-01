@@ -119,9 +119,18 @@ const SAMPLES: { label: string; track: Track }[] = [
 
 // ─── Severity styling ──────────────────────────────────
 const SEV_STYLE = {
-  critical: { badge: "bg-red/15 text-[#fda4af] border-red/20", dot: "#f43f5e" },
-  warning: { badge: "bg-amber/15 text-[#fcd34d] border-amber/20", dot: "#f59e0b" },
-  suggestion: { badge: "bg-blue/15 text-[#93c5fd] border-blue/20", dot: "#3b82f6" },
+  critical: { badge: "bg-red/15 text-[#fda4af] border-red/20", dotClass: "bg-rose-500" },
+  warning: { badge: "bg-amber/15 text-[#fcd34d] border-amber/20", dotClass: "bg-amber-500" },
+  suggestion: { badge: "bg-blue/15 text-[#93c5fd] border-blue/20", dotClass: "bg-blue-500" },
+};
+
+// ─── Grade display classes ───────────────────────────────
+const GRADE_DISPLAY: Record<string, { text: string; bg: string }> = {
+  A: { text: "text-green-500", bg: "bg-green-950/60" },
+  B: { text: "text-lime-500", bg: "bg-lime-950/60" },
+  C: { text: "text-yellow-500", bg: "bg-yellow-950/60" },
+  D: { text: "text-orange-500", bg: "bg-orange-950/60" },
+  F: { text: "text-rose-500", bg: "bg-rose-950/60" },
 };
 
 // ─── Component ─────────────────────────────────────────
@@ -185,8 +194,7 @@ export function LiveDemo() {
             {/* Grade header */}
             <div className="flex items-center gap-4 mb-5 pb-4 border-b border-border">
               <div
-                className="w-14 h-14 rounded-xl flex items-center justify-center text-3xl font-bold font-display"
-                style={{ background: g!.bg, color: g!.color }}
+                className={`w-14 h-14 rounded-xl flex items-center justify-center text-3xl font-bold font-display ${GRADE_DISPLAY[g!.letter]?.bg ?? "bg-surface"} ${GRADE_DISPLAY[g!.letter]?.text ?? "text-text-muted"}`}
               >
                 {g!.letter}
               </div>
@@ -201,7 +209,7 @@ export function LiveDemo() {
             </div>
 
             {/* Issues list */}
-            <div className="space-y-2 max-h-[320px] overflow-y-auto pr-1" style={{ scrollbarWidth: "thin", scrollbarColor: "var(--color-border-bright) transparent" }}>
+            <div className="space-y-2 max-h-[320px] overflow-y-auto pr-1 scrollbar-thin">
               {[...criticals, ...warnings, ...suggestions].map((r, i) => {
                 const s = SEV_STYLE[r.severity];
                 return (
@@ -209,7 +217,7 @@ export function LiveDemo() {
                     key={i}
                     className="flex items-start gap-3 py-3 px-4 rounded-xl border border-border bg-surface/50 hover:bg-surface transition-colors"
                   >
-                    <span className="mt-1 w-2 h-2 rounded-full shrink-0" style={{ background: s.dot }} />
+                    <span className={`mt-1 w-2 h-2 rounded-full shrink-0 ${s.dotClass}`} />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
                         <span className={`text-[10px] font-mono font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full border ${s.badge}`}>

@@ -29,11 +29,13 @@ export default function Home() {
       {/* ── HERO ────────────────────────────────────────── */}
       <section className="relative pt-32 pb-12 overflow-hidden">
         {/* Background grid */}
+        {/* eslint-disable-next-line react/forbid-dom-props */}
         <div className="absolute inset-0 opacity-[0.04]" style={{
           backgroundImage: `linear-gradient(var(--color-border) 1px, transparent 1px), linear-gradient(90deg, var(--color-border) 1px, transparent 1px)`,
           backgroundSize: "64px 64px",
         }} />
         {/* Radial glow */}
+        {/* eslint-disable-next-line react/forbid-dom-props */}
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[600px] rounded-full"
           style={{ background: "radial-gradient(ellipse, rgba(13,148,136,0.08) 0%, transparent 70%)" }} />
 
