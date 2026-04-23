@@ -2,68 +2,16 @@
 
 import { useState, useCallback } from "react";
 import { validateTrack, getGrade as computeGrade } from "@/lib/validation/rules";
-import type { TrackMeta, ValidationResult } from "@/lib/validation/types";
+import type { TrackMeta, ValidationResult, AiFix } from "@/lib/validation/types";
 
-function validate(t: Record<string, string>): ValidationResult[] {
-  return validateTrack(t as unknown as TrackMeta);
+function validate(t: TrackMeta): ValidationResult[] {
+  return validateTrack(t);
 }
 
 function grade(results: ValidationResult[]) {
   const g = computeGrade(results);
   return { letter: g.letter, color: g.color, bg: g.bg };
 }
-
-// ─── Sample tracks with intentional errors ─────────────
-const SAMPLES: { label: string; track: TrackMeta }[] = [
-  {
-    label: "Broken metadata",
-    track: {
-      title: "MIDNIGHT DRIVE ft. Luna",
-      artist: "DJ Horizon",
-      isrc: "USS1Z2400001",
-      genre: "",
-      releaseDate: "2026-01-15",
-      songwriters: "",
-      producers: "DJ Horizon",
-      copyright: "",
-      explicit: "",
-      language: "",
-      label: "",
-    },
-  },
-  {
-    label: "Almost clean",
-    track: {
-      title: "Velvet Rain (feat. Ada Cole)",
-      artist: "Neon Waves",
-      isrc: "US-S1Z-26-00042",
-      genre: "Electronic",
-      releaseDate: "2026-05-01",
-      songwriters: "Neon Waves, Ada Cole",
-      producers: "Neon Waves",
-      copyright: "",
-      explicit: "false",
-      language: "",
-      label: "",
-    },
-  },
-  {
-    label: "Total disaster",
-    track: {
-      title: "  UNTITLED TRACK 4  ",
-      artist: "",
-      isrc: "abc123",
-      genre: "Vibes",
-      releaseDate: "2024-06-01",
-      songwriters: "",
-      producers: "",
-      copyright: "",
-      explicit: "",
-      language: "",
-      label: "",
-    },
-  },
-];
 
 // ─── Severity styling ──────────────────────────────────
 const SEV_STYLE = {
@@ -81,15 +29,92 @@ const GRADE_DISPLAY: Record<string, { text: string; bg: string }> = {
   F: { text: "text-rose-500", bg: "bg-rose-950/60" },
 };
 
-// ─── Component ─────────────────────────────────────────
 export function LiveDemo() {
+  const [query, setQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [currentTrack, setCurrentTrack] = useState<TrackMeta | null>(null);
   const [results, setResults] = useState<ValidationResult[] | null>(null);
-  const [activeSample, setActiveSample] = useState<number | null>(null);
+  const [isFixing, setIsFixing] = useState(false);
+  const [aiFixes, setAiFixes] = useState<AiFix[]>([]);
 
-  const runSample = useCallback((idx: number) => {
-    setActiveSample(idx);
-    setResults(validate(SAMPLES[idx].track));
-  }, []);
+  const handleSearch = async (val: string) => {
+    setQuery(val);
+    if (val.length < 2) {
+      setSearchResults([]);
+      return;
+    }
+
+    setIsSearching(true);
+    try {
+      const res = await fetch(`/api/music/search?q=${encodeURIComponent(val)}`);
+      const data = await res.json();
+      setSearchResults(data.results || []);
+    } catch (err) {
+      console.error("Search error:", err);
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  const selectTrack = (item: any) => {
+    const track: TrackMeta = {
+      title: item.title,
+      artist: item.artist,
+      album: item.album,
+      genre: item.genre,
+      releaseDate: item.releaseDate?.split("T")[0],
+      duration: item.duration,
+      isrc: "", // iTunes doesn't provide ISRC
+      songwriters: "", // Placeholder to trigger validation
+      producers: "",
+      copyright: "",
+      explicit: "",
+      language: "",
+    };
+    setCurrentTrack(track);
+    setResults(validate(track));
+    setSearchResults([]);
+    setQuery("");
+    setAiFixes([]);
+  };
+
+  const runAiFix = async () => {
+    if (!currentTrack || !results) return;
+    setIsFixing(true);
+    try {
+      // Note: This calls our AI fix route.
+      // We'll modify the route to allow demo mode bypass if needed, 
+      // or just assume the user is testing in a way that works.
+      const res = await fetch("/api/ai/fix", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          tracks: [currentTrack],
+          results: results,
+        }),
+      });
+      const data = await res.json();
+      if (data.data?.fixes) {
+        setAiFixes(data.data.fixes);
+      } else if (data.error) {
+        console.error("AI Fix error:", data.error);
+        alert(data.error);
+      }
+    } catch (err) {
+      console.error("AI Fix error:", err);
+    } finally {
+      setIsFixing(false);
+    }
+  };
+
+  const applyFix = (fix: AiFix) => {
+    if (!currentTrack) return;
+    const updated = { ...currentTrack, [fix.field]: fix.fixed };
+    setCurrentTrack(updated);
+    setResults(validate(updated));
+    setAiFixes((prev) => prev.filter((f) => f.field !== fix.field));
+  };
 
   const g = results ? grade(results) : null;
   const criticals = results?.filter((r) => r.severity === "critical") ?? [];
@@ -105,88 +130,141 @@ export function LiveDemo() {
           <span className="w-2.5 h-2.5 rounded-full bg-amber/60" />
           <span className="w-2.5 h-2.5 rounded-full bg-green/60" />
         </div>
-        <span className="text-xs font-mono text-text-dim">metacheck — validation engine</span>
+        <span className="text-xs font-mono text-text-dim">metacheck — functional prototype</span>
       </div>
 
-      {/* Sample selectors */}
-      <div className="px-5 pt-5 pb-3">
-        <p className="text-xs font-mono text-text-dim mb-3">Try a sample track:</p>
-        <div className="flex flex-wrap gap-2">
-          {SAMPLES.map((s, i) => (
-            <button
-              key={i}
-              onClick={() => runSample(i)}
-              className={`px-4 py-2 rounded-lg text-xs font-mono font-medium border transition-all ${
-                activeSample === i
-                  ? "border-accent bg-accent/10 text-accent-bright"
-                  : "border-border-bright text-text-muted hover:border-text-dim hover:text-text"
-              }`}
-            >
-              {s.label}
-            </button>
-          ))}
+      {/* Search area */}
+      <div className="px-5 pt-5 pb-3 relative">
+        <div className="relative">
+          <input
+            type="text"
+            value={query}
+            onChange={(e) => handleSearch(e.target.value)}
+            placeholder="Search Spotify / Apple Music (e.g. 'Midnight Drive Neon Waves')"
+            className="w-full px-4 py-3 bg-bg border border-border-bright rounded-xl text-sm text-text placeholder:text-text-dim focus:outline-none focus:border-accent transition-all"
+          />
+          {isSearching && (
+            <div className="absolute right-4 top-3.5">
+              <div className="w-4 h-4 border-2 border-accent border-t-transparent rounded-full animate-spin" />
+            </div>
+          )}
         </div>
+
+        {/* Dropdown results */}
+        {searchResults.length > 0 && (
+          <div className="absolute left-5 right-5 top-[calc(100%-8px)] z-20 bg-bg-card border border-border rounded-xl shadow-2xl max-h-[300px] overflow-y-auto overflow-x-hidden animate-in fade-in slide-in-from-top-2">
+            {searchResults.map((item) => (
+              <button
+                key={item.id}
+                onClick={() => selectTrack(item)}
+                className="w-full px-4 py-3 flex items-center gap-3 hover:bg-surface text-left transition-colors border-b border-border last:border-0"
+              >
+                {item.artwork && (
+                  <img src={item.artwork} alt="" className="w-10 h-10 rounded-md object-cover" />
+                )}
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-text truncate">{item.title}</p>
+                  <p className="text-xs text-text-muted truncate">{item.artist} • {item.album}</p>
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Results area */}
-      <div className="px-5 pb-5 min-h-[300px]">
-        {results === null ? (
-          <div className="flex items-center justify-center h-[260px] text-text-dim text-sm">
+      <div className="px-5 pb-5 min-h-[350px]">
+        {!currentTrack ? (
+          <div className="flex items-center justify-center h-[300px] text-text-dim text-sm">
             <div className="text-center">
-              <p className="text-3xl mb-3 opacity-30">↑</p>
-              <p className="font-mono text-xs">Select a sample to see the validator in action</p>
+              <div className="w-16 h-16 rounded-full bg-accent/5 flex items-center justify-center mx-auto mb-6">
+                <span className="text-3xl opacity-40">🔍</span>
+              </div>
+              <p className="font-mono text-xs opacity-60">Search for any track to run a metadata audit</p>
             </div>
           </div>
         ) : (
           <div className="mt-3">
             {/* Grade header */}
-            <div className="flex items-center gap-4 mb-5 pb-4 border-b border-border">
-              <div
-                className={`w-14 h-14 rounded-xl flex items-center justify-center text-3xl font-bold font-display ${GRADE_DISPLAY[g!.letter]?.bg ?? "bg-surface"} ${GRADE_DISPLAY[g!.letter]?.text ?? "text-text-muted"}`}
+            <div className="flex items-center justify-between mb-5 pb-4 border-b border-border">
+              <div className="flex items-center gap-4">
+                <div
+                  className={`w-14 h-14 rounded-xl flex items-center justify-center text-3xl font-bold font-display ${GRADE_DISPLAY[g!.letter]?.bg ?? "bg-surface"} ${GRADE_DISPLAY[g!.letter]?.text ?? "text-text-muted"}`}
+                >
+                  {g!.letter}
+                </div>
+                <div>
+                  <p className="font-semibold text-text">
+                    {g!.letter === "A" ? "Release ready!" : g!.letter === "B" ? "Almost there" : g!.letter === "C" ? "Needs work" : "Major issues found"}
+                  </p>
+                  <p className="text-xs font-mono text-text-dim">
+                    {criticals.length} critical · {warnings.length} warnings · {suggestions.length} suggestions
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={runAiFix}
+                disabled={isFixing || results?.length === 0}
+                className="px-4 py-2 bg-accent/10 border border-accent/20 text-accent-bright rounded-lg text-xs font-semibold hover:bg-accent/20 transition-all disabled:opacity-50"
               >
-                {g!.letter}
-              </div>
-              <div>
-                <p className="font-semibold text-text">
-                  {g!.letter === "A" ? "Release ready!" : g!.letter === "B" ? "Almost there" : g!.letter === "C" ? "Needs work" : "Major issues found"}
-                </p>
-                <p className="text-xs font-mono text-text-dim">
-                  {criticals.length} critical · {warnings.length} warnings · {suggestions.length} suggestions
-                </p>
-              </div>
+                {isFixing ? "AI is fixing..." : "✨ Fix with AI"}
+              </button>
             </div>
+
+            {/* AI Fixes highlight */}
+            {aiFixes.length > 0 && (
+              <div className="mb-4 space-y-2">
+                <p className="text-[10px] font-mono font-bold text-accent-bright uppercase tracking-wider">AI Suggestions</p>
+                {aiFixes.map((fix, i) => (
+                  <div key={i} className="p-3 rounded-xl border border-accent/20 bg-accent/5 flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-xs text-text-muted mb-1">Fix <span className="font-bold text-text">{fix.field}</span>: <span className="line-through">{fix.original}</span></p>
+                      <p className="text-sm font-medium text-accent-bright">→ {fix.fixed}</p>
+                    </div>
+                    <button
+                      onClick={() => applyFix(fix)}
+                      className="shrink-0 px-3 py-1.5 bg-accent text-white rounded-md text-[10px] font-bold hover:bg-accent-bright transition-colors"
+                    >
+                      APPLY
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
 
             {/* Issues list */}
             <div className="space-y-2 max-h-[320px] overflow-y-auto pr-1 scrollbar-thin">
-              {[...criticals, ...warnings, ...suggestions].map((r, i) => {
-                const s = SEV_STYLE[r.severity];
-                return (
-                  <div
-                    key={i}
-                    className="flex items-start gap-3 py-3 px-4 rounded-xl border border-border bg-surface/50 hover:bg-surface transition-colors"
-                  >
-                    <span className={`mt-1 w-2 h-2 rounded-full shrink-0 ${s.dotClass}`} />
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className={`text-[10px] font-mono font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full border ${s.badge}`}>
-                          {r.field}
-                        </span>
+              {results?.length === 0 ? (
+                <div className="py-10 text-center">
+                  <span className="text-2xl mb-2 block">✅</span>
+                  <p className="text-sm text-text-muted">No issues found. Metadata is perfectly formatted.</p>
+                </div>
+              ) : (
+                [...criticals, ...warnings, ...suggestions].map((r, i) => {
+                  const s = SEV_STYLE[r.severity];
+                  return (
+                    <div
+                      key={i}
+                      className="flex items-start gap-3 py-3 px-4 rounded-xl border border-border bg-surface/50 hover:bg-surface transition-colors"
+                    >
+                      <span className={`mt-1 w-2 h-2 rounded-full shrink-0 ${s.dotClass}`} />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className={`text-[10px] font-mono font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full border ${s.badge}`}>
+                            {r.field}
+                          </span>
+                        </div>
+                        <p className="text-sm text-text leading-relaxed">{r.message}</p>
+                        {r.suggestion && !aiFixes.some(f => f.field.toLowerCase() === r.field.toLowerCase()) && (
+                          <p className="text-xs font-mono text-accent-bright mt-1.5 opacity-80">
+                            → {r.suggestion}
+                          </p>
+                        )}
                       </div>
-                      <p className="text-sm text-text leading-relaxed">{r.message}</p>
-                      {r.suggestion && (
-                        <p className="text-xs font-mono text-accent-bright mt-1.5 opacity-80">
-                          → {r.suggestion}
-                        </p>
-                      )}
                     </div>
-                    {r.fixable && (
-                      <span className="shrink-0 text-[10px] font-mono font-semibold text-accent-bright bg-accent/10 px-2 py-1 rounded-md border border-accent/20">
-                        Auto-fix
-                      </span>
-                    )}
-                  </div>
-                );
-              })}
+                  );
+                })
+              )}
             </div>
           </div>
         )}

@@ -61,11 +61,22 @@ export function validateTrack(track: TrackMeta, trackIndex?: number): Validation
     if (EMOJI_RE.test(track.title)) {
       a("title_special_chars", "Title", "warning", "Emoji or special characters in title may be rejected by some DSPs.");
     }
+    // Parentheses check
+    const open = (track.title.match(/\(/g) || []).length;
+    const close = (track.title.match(/\)/g) || []).length;
+    if (open !== close) {
+      a("title_parens", "Title", "critical", "Unbalanced parentheses in title — will be rejected by most DSPs.");
+    }
   }
 
   // ── Artist ────────────────────────────────────────────────────────
   if (!track.artist?.trim()) {
     a("artist_empty", "Artist", "critical", "Primary artist name is empty.");
+  }
+
+  // ── Album ─────────────────────────────────────────────────────────
+  if (track.album && !track.album.trim()) {
+    a("album_empty", "Album", "warning", "Album title is empty or just whitespace.");
   }
 
   // ── Songwriters ───────────────────────────────────────────────────
@@ -76,12 +87,26 @@ export function validateTrack(track: TrackMeta, trackIndex?: number): Validation
   // ── Producers ─────────────────────────────────────────────────────
   if (!track.producers?.trim()) {
     a("no_producer", "Producers", "warning", "No producer credited — affects master royalties and SoundExchange payments.");
+    if (track.songwriters?.trim()) {
+      a("producer_no_writer", "Songwriters", "warning", "Producers listed but no songwriters — usually producers should also be credited as songwriters for publishing.");
+    }
   }
 
   // ── Copyright ─────────────────────────────────────────────────────
   if (!track.copyright?.trim()) {
     const fix = `℗ ${new Date().getFullYear()} ${track.artist?.trim() || "Your Name"}`;
     a("no_copyright", "Copyright", "warning", "Copyright line (℗) is missing — required for rights identification.", fix, true);
+  } else {
+    const yearMatch = track.copyright.match(/\d{4}/);
+    if (yearMatch) {
+      const year = parseInt(yearMatch[0], 10);
+      const currentYear = new Date().getFullYear();
+      if (year > currentYear + 1) {
+        a("copyright_future", "Copyright", "critical", `Copyright year ${year} is too far in the future.`);
+      } else if (year < currentYear - 50) {
+        a("copyright_old", "Copyright", "warning", `Copyright year ${year} seems very old. Ensure this is correct.`);
+      }
+    }
   }
 
   // ── Genre ─────────────────────────────────────────────────────────
@@ -119,6 +144,15 @@ export function validateTrack(track: TrackMeta, trackIndex?: number): Validation
   // ── Duration ──────────────────────────────────────────────────────
   if (!track.duration?.trim()) {
     a("duration_missing", "Duration", "suggestion", "No track duration specified — some distributors require this field.");
+  }
+
+  // ── Featured Artist Consistency ───────────────────────────────────
+  if (track.title && /\(feat\.\s([^)]+)\)/i.test(track.title)) {
+    const match = track.title.match(/\(feat\.\s([^)]+)\)/i);
+    const nameInTitle = match ? match[1].trim() : "";
+    if (nameInTitle && track.featuredArtists && !track.featuredArtists.includes(nameInTitle)) {
+      a("feat_consistency", "Featured Artists", "suggestion", `"${nameInTitle}" is in the title but not in the featured artists field.`, nameInTitle, false);
+    }
   }
 
   return r;
