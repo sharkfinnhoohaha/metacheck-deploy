@@ -14,7 +14,7 @@ function grade(results: ValidationResult[]) {
 }
 
 // ─── Sample tracks with intentional errors ─────────────
-const SAMPLES: { label: string; track: Track }[] = [
+const SAMPLES: { label: string; track: TrackMeta }[] = [
   {
     label: "Broken metadata",
     track: {
@@ -83,7 +83,7 @@ const GRADE_DISPLAY: Record<string, { text: string; bg: string }> = {
 
 // ─── Component ─────────────────────────────────────────
 export function LiveDemo() {
-  const [results, setResults] = useState<Result[] | null>(null);
+  const [results, setResults] = useState<ValidationResult[] | null>(null);
   const [activeSample, setActiveSample] = useState<number | null>(null);
 
   const runSample = useCallback((idx: number) => {
