@@ -267,15 +267,19 @@ export default function ValidatePage() {
   const runAiFixes = async () => {
     setAiLoading(true);
     try {
+      // We pass the current tracks and the validation results so the AI knows what to fix
       const res = await fetch("/api/ai/fix", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ tracks, results }),
       });
       const json = await res.json();
-      if (json.error) throw new Error(json.error);
+      if (!res.ok) throw new Error(json.error || "AI request failed");
+      
+      // The AI returns an array of fixes: { trackIndex, field, original, fixed, reason }
       setAiFixes(json.data?.fixes ?? []);
     } catch (err) {
+      console.error("AI Fix Error:", err);
       alert(err instanceof Error ? err.message : "AI request failed");
     } finally {
       setAiLoading(false);
@@ -285,9 +289,9 @@ export default function ValidatePage() {
   // Apply AI fix
   const applyAiFix = (fix: import("@/lib/validation/types").AiFix) => {
     const fieldKey = fix.field as keyof TrackMeta;
-    setTracks((prev) =>
-      prev.map((t, i) => (i === fix.trackIndex ? { ...t, [fieldKey]: fix.fixed } : t))
-    );
+    const updated = tracks.map((t, i) => (i === fix.trackIndex ? { ...t, [fieldKey]: fix.fixed } : t));
+    setTracks(updated);
+    setFixedTracks(updated);
     setAiFixes((prev) => prev?.filter((f) => f !== fix) ?? null);
   };
 

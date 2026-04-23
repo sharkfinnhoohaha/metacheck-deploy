@@ -1,68 +1,16 @@
 "use client";
 
 import { useState, useCallback } from "react";
+import { validateTrack, getGrade as computeGrade } from "@/lib/validation/rules";
+import type { TrackMeta, ValidationResult } from "@/lib/validation/types";
 
-// ─── Validation engine ─────────────────────────────────
-const ISRC_RE = /^[A-Z]{2}[A-Z0-9]{3}\d{2}\d{5}$/;
-
-type Result = {
-  rule: string;
-  field: string;
-  severity: "critical" | "warning" | "suggestion";
-  message: string;
-  suggestion?: string;
-  fixable: boolean;
-};
-
-type Track = Record<string, string>;
-
-function validate(t: Track): Result[] {
-  const r: Result[] = [];
-  const add = (
-    rule: string, field: string, severity: Result["severity"],
-    message: string, suggestion?: string, fixable = false
-  ) => r.push({ rule, field, severity, message, suggestion, fixable });
-
-  if (!t.isrc) add("isrc_missing", "ISRC", "critical", "Missing ISRC — royalty tracking will fail across all platforms.", "Get one from your distributor or usisrc.org");
-  else if (!ISRC_RE.test(t.isrc.replace(/-/g, "").toUpperCase())) add("isrc_format", "ISRC", "critical", `"${t.isrc}" is not a valid ISRC. Format: CC-XXX-YY-NNNNN.`);
-
-  if (!t.title?.trim()) add("title_empty", "Title", "critical", "Track title is empty.");
-  else {
-    if (t.title === t.title.toUpperCase() && t.title.length > 3) {
-      const fixed = t.title.split(" ").map((w: string) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(" ");
-      add("title_caps", "Title", "warning", "ALL CAPS title — most DSPs prefer title case.", fixed, true);
-    }
-    if (/\bft\.?\s/i.test(t.title) && !/\(feat\.\s/.test(t.title))
-      add("title_feat", "Title", "warning", 'Featured artist should use "(feat. Name)" format — "ft." is commonly rejected.');
-    if (t.title !== t.title.trim()) add("title_ws", "Title", "warning", "Trailing whitespace detected.", t.title.trim(), true);
-  }
-
-  if (!t.artist?.trim()) add("artist_empty", "Artist", "critical", "Primary artist name is empty.");
-  if (!t.songwriters?.trim()) add("no_writers", "Songwriters", "critical", "No songwriters listed — blocks publishing royalties via PROs and the MLC.");
-  if (!t.producers?.trim()) add("no_producer", "Producers", "warning", "No producer credited — affects master royalties and SoundExchange payments.");
-
-  if (!t.copyright?.trim()) {
-    const fix = `℗ ${new Date().getFullYear()} ${t.artist || "Your Name"}`;
-    add("no_copyright", "Copyright", "warning", "Copyright line (℗) is missing — required for proper rights ID.", fix, true);
-  }
-
-  if (!t.genre) add("no_genre", "Genre", "warning", "Genre missing — hurts playlist discoverability.");
-  if (!t.explicit) add("no_explicit", "Explicit", "warning", "Explicit content flag not set — required by all major DSPs.");
-  if (!t.language?.trim()) add("no_lang", "Language", "suggestion", "Language not specified — defaults to English but should be explicit.", "en", true);
-  if (!t.label?.trim()) add("no_label", "Label", "suggestion", "Label name missing — self-released artists should use their name.", t.artist || undefined, !!t.artist);
-  if (t.releaseDate && new Date(t.releaseDate) < new Date()) add("date_past", "Release Date", "suggestion", "Release date is in the past — Spotify editorial needs 7+ days lead time.");
-
-  return r;
+function validate(t: Record<string, string>): ValidationResult[] {
+  return validateTrack(t as unknown as TrackMeta);
 }
 
-function grade(results: Result[]) {
-  const c = results.filter((r) => r.severity === "critical").length;
-  const w = results.filter((r) => r.severity === "warning").length;
-  if (c === 0 && w === 0) return { letter: "A", color: "#22c55e", bg: "#052e16" };
-  if (c === 0 && w <= 2) return { letter: "B", color: "#84cc16", bg: "#1a2e05" };
-  if (c <= 1) return { letter: "C", color: "#eab308", bg: "#2e2505" };
-  if (c <= 3) return { letter: "D", color: "#f97316", bg: "#2e1a05" };
-  return { letter: "F", color: "#f43f5e", bg: "#2e050d" };
+function grade(results: ValidationResult[]) {
+  const g = computeGrade(results);
+  return { letter: g.letter, color: g.color, bg: g.bg };
 }
 
 // ─── Sample tracks with intentional errors ─────────────

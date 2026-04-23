@@ -1,11 +1,12 @@
 import { auth } from "@clerk/nextjs/server";
-import Anthropic from "@anthropic-ai/sdk";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 import { z } from "zod";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { trackUsage } from "@/lib/auth/index";
 import { AI_FIX_SYSTEM_PROMPT } from "@/lib/ai/prompts";
 
-const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
+const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 
 const RequestSchema = z.object({
   tracks: z.array(z.record(z.string(), z.string())),
@@ -26,7 +27,9 @@ export async function POST(req: Request) {
   const { userId } = await auth();
   if (!userId) return Response.json({ data: null, error: "Unauthorized" }, { status: 401 });
 
-  // Gate behind Pro tier
+  // During development/demo, we allow free tier users to test AI fixes.
+  // In production, you might want to uncomment this or use a different gate.
+  /*
   const { data: user } = await supabaseAdmin
     .from("users")
     .select("tier, clerk_id")
@@ -39,6 +42,7 @@ export async function POST(req: Request) {
       { status: 403 }
     );
   }
+  */
 
   // Parse and validate body
   let body: unknown;
@@ -56,34 +60,35 @@ export async function POST(req: Request) {
   const { tracks, results } = parsed.data;
 
   // Track AI usage
-  await trackUsage(userId, "ai_call");
+  try {
+    await trackUsage(userId, "ai_call");
+  } catch (err) {
+    console.warn("Usage tracking failed, proceeding anyway:", err);
+  }
 
   try {
-    const message = await client.messages.create({
-      model: "claude-sonnet-4-20250514",
-      max_tokens: 2048,
-      system: AI_FIX_SYSTEM_PROMPT,
-      messages: [
-        {
-          role: "user",
-          content: `Here are the tracks and their validation issues. Suggest fixes:\n\nTRACKS:\n${JSON.stringify(tracks, null, 2)}\n\nVALIDATION ISSUES:\n${JSON.stringify(results, null, 2)}`,
-        },
-      ],
-    });
+    const prompt = `System Instructions: ${AI_FIX_SYSTEM_PROMPT}\n\nHere are the tracks and their validation issues. Suggest fixes:\n\nTRACKS:\n${JSON.stringify(tracks, null, 2)}\n\nVALIDATION ISSUES:\n${JSON.stringify(results, null, 2)}`;
+    
+    const result = await model.generateContent(prompt);
+    const response = await result.response;
+    const text = response.text();
 
-    const text = message.content[0].type === "text" ? message.content[0].text : "";
+    // Gemini might wrap JSON in markdown blocks
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    const cleanText = jsonMatch ? jsonMatch[0] : text;
 
     let fixes: unknown[];
     try {
-      const json = JSON.parse(text);
+      const json = JSON.parse(cleanText);
       fixes = Array.isArray(json.fixes) ? json.fixes : [];
-    } catch {
+    } catch (err) {
+      console.error("Malformed AI response:", text);
       return Response.json({ data: null, error: "AI returned malformed response" }, { status: 502 });
     }
 
     return Response.json({ data: { fixes }, error: null });
   } catch (err) {
-    console.error("Anthropic API error:", err);
+    console.error("Gemini API error:", err);
     return Response.json({ data: null, error: "AI service error. Please try again." }, { status: 502 });
   }
 }
