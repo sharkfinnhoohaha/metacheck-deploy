@@ -62,15 +62,15 @@ export function LiveDemo() {
       title: item.title,
       artist: item.artist,
       album: item.album,
-      genre: item.genre,
-      releaseDate: item.releaseDate?.split("T")[0],
-      duration: item.duration,
-      isrc: "", // iTunes doesn't provide ISRC
+      genre: item.genre || "Pop",
+      releaseDate: item.releaseDate?.split("T")[0] || new Date().toISOString().split("T")[0],
+      duration: item.duration || "0",
+      isrc: item.isrc || "", // Often empty from iTunes
       songwriters: "", // Placeholder to trigger validation
       producers: "",
-      copyright: "",
-      explicit: "",
-      language: "",
+      copyright: `℗ ${new Date().getFullYear()} ${item.artist}`,
+      explicit: "false",
+      language: "en",
     };
     setCurrentTrack(track);
     setResults(validate(track));
@@ -140,8 +140,8 @@ export function LiveDemo() {
             type="text"
             value={query}
             onChange={(e) => handleSearch(e.target.value)}
-            placeholder="Search Spotify / Apple Music (e.g. 'Midnight Drive Neon Waves')"
-            className="w-full px-4 py-3 bg-bg border border-border-bright rounded-xl text-sm text-text placeholder:text-text-dim focus:outline-none focus:border-accent transition-all"
+            placeholder="Search ANY song in the world (e.g. 'The Weeknd Blinding Lights')"
+            className="w-full px-4 py-4 bg-bg border border-border-bright rounded-xl text-base text-text placeholder:text-text-dim focus:outline-none focus:border-accent focus:ring-4 focus:ring-accent/10 transition-all shadow-inner"
           />
           {isSearching && (
             <div className="absolute right-4 top-3.5">

@@ -17,20 +17,23 @@ export async function GET(req: Request) {
     const data = await response.json();
 
     const results = data.results.map((item: any) => ({
-      id: item.trackId.toString(),
-      title: item.trackName,
-      artist: item.artistName,
-      album: item.collectionName,
-      artwork: item.artworkUrl100,
-      genre: item.primaryGenreName,
-      releaseDate: item.releaseDate,
-      duration: Math.round(item.trackTimeMillis / 1000).toString(),
-      // iTunes doesn't give ISRC in search results easily, but we can provide other metadata
+      id: item.trackId?.toString() || Math.random().toString(36).substring(7),
+      title: item.trackName || "Unknown Title",
+      artist: item.artistName || "Unknown Artist",
+      album: item.collectionName || "Unknown Album",
+      artwork: item.artworkUrl100?.replace("100x100", "400x400") || "",
+      genre: item.primaryGenreName || "",
+      releaseDate: item.releaseDate || new Date().toISOString(),
+      duration: item.trackTimeMillis ? Math.round(item.trackTimeMillis / 1000).toString() : "0",
+      isrc: item.isrc || "", // Still empty for iTunes mostly, but ready
     }));
 
     return NextResponse.json({ results });
   } catch (error) {
-    console.error("Search error:", error);
-    return NextResponse.json({ error: "Failed to fetch results" }, { status: 500 });
+    console.error("Search API Error Details:", error);
+    return NextResponse.json({ 
+      error: "Failed to fetch music data", 
+      details: error instanceof Error ? error.message : "Unknown error"
+    }, { status: 500 });
   }
 }
