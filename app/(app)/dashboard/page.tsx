@@ -1,11 +1,15 @@
 import { auth, currentUser } from "@clerk/nextjs/server";
-import { createClient } from "@/lib/supabase/server";
+import { supabaseAdmin } from "@/lib/supabase/admin";
 import Link from "next/link";
 
 export default async function DashboardPage() {
   const { userId } = await auth();
   const user = await currentUser();
-  const supabase = await createClient();
+  // Reads go through the service-role client scoped to the authenticated
+  // Clerk user. The app uses Clerk (not Supabase Auth), so the anon client
+  // has no JWT for RLS — service-role + explicit clerk_id filter is the
+  // correct, secure pattern here (mirrors the /api/releases route).
+  const supabase = supabaseAdmin;
 
   // Fetch usage for this month
   const month = new Date().toISOString().slice(0, 7);

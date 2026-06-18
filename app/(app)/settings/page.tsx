@@ -1,5 +1,5 @@
 import { auth, currentUser } from "@clerk/nextjs/server";
-import { createClient } from "@/lib/supabase/server";
+import { supabaseAdmin } from "@/lib/supabase/admin";
 import Link from "next/link";
 
 const PLANS = [
@@ -20,7 +20,7 @@ const PLANS = [
 export default async function SettingsPage() {
   const { userId } = await auth();
   const user = await currentUser();
-  const supabase = await createClient();
+  const supabase = supabaseAdmin;
 
   const { data: userData } = await supabase
     .from("users")

@@ -1,5 +1,5 @@
 import { auth } from "@clerk/nextjs/server";
-import { createClient } from "@/lib/supabase/server";
+import { supabaseAdmin } from "@/lib/supabase/admin";
 import Link from "next/link";
 
 const GRADE_CLASSES: Record<string, { text: string; bg: string }> = {
@@ -12,7 +12,7 @@ const GRADE_CLASSES: Record<string, { text: string; bg: string }> = {
 
 export default async function HistoryPage() {
   const { userId } = await auth();
-  const supabase = await createClient();
+  const supabase = supabaseAdmin;
 
   const { data: userData } = await supabase
     .from("users")

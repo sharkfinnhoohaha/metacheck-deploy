@@ -1,5 +1,5 @@
 import { auth } from "@clerk/nextjs/server";
-import { createClient } from "@/lib/supabase/server";
+import { supabaseAdmin } from "@/lib/supabase/admin";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import type { ValidationResult } from "@/lib/validation/types";
@@ -23,7 +23,7 @@ const SEV_STYLES: Record<string, { badge: string; border: string; dotClass: stri
 export default async function ReleaseDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const { userId } = await auth();
-  const supabase = await createClient();
+  const supabase = supabaseAdmin;
 
   const { data: release } = await supabase
     .from("releases")
