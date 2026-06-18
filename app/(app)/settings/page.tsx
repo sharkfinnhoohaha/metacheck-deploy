@@ -24,12 +24,13 @@ export default async function SettingsPage() {
 
   const { data: userData } = await supabase
     .from("users")
-    .select("tier, stripe_customer_id, email")
+    .select("tier, stripe_customer_id, paypal_subscription_id, email")
     .eq("clerk_id", userId!)
     .single();
 
   const tier = userData?.tier ?? "free";
   const hasStripe = !!userData?.stripe_customer_id;
+  const hasPaypal = !!userData?.paypal_subscription_id;
 
   return (
     <div className="max-w-3xl mx-auto px-6 py-10">
@@ -55,6 +56,16 @@ export default async function SettingsPage() {
                 className="px-4 py-2.5 rounded-lg border border-border text-sm text-text-muted font-mono hover:text-text hover:border-border-bright transition-colors"
               >
                 Manage billing →
+              </button>
+            </form>
+          )}
+          {hasPaypal && !hasStripe && (
+            <form action="/api/paypal/cancel" method="POST">
+              <button
+                type="submit"
+                className="px-4 py-2.5 rounded-lg border border-border text-sm text-text-muted font-mono hover:text-text hover:border-border-bright transition-colors"
+              >
+                Cancel PayPal subscription
               </button>
             </form>
           )}
@@ -86,6 +97,12 @@ export default async function SettingsPage() {
                   className="w-full text-center py-2.5 rounded-lg bg-accent text-white text-sm font-semibold hover:bg-accent-bright transition-colors"
                 >
                   Upgrade to {plan.name}
+                </Link>
+                <Link
+                  href={`/api/paypal/checkout?tier=${plan.id}`}
+                  className="w-full text-center py-2 rounded-lg border border-border-bright text-xs text-text-muted font-mono hover:text-text hover:border-text-dim transition-colors -mt-2"
+                >
+                  or pay with PayPal
                 </Link>
               </div>
             ))}
