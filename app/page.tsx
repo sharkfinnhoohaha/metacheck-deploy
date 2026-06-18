@@ -1,9 +1,32 @@
 import Link from "next/link";
+import { SITE_URL } from "@/lib/site";
 import { LiveDemo } from "./demo";
+
+const jsonLd = {
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  name: "MetaCheck",
+  applicationCategory: "BusinessApplication",
+  operatingSystem: "Web",
+  description:
+    "Scan music release metadata for ISRC errors, missing credits, and 30+ issues that cost royalties. AI suggests fixes before you submit to your distributor.",
+  url: SITE_URL,
+  publisher: { "@type": "Organization", name: "Overlook Strategy" },
+  offers: [
+    { "@type": "Offer", name: "Free", price: "0", priceCurrency: "USD" },
+    { "@type": "Offer", name: "Pro", price: "9", priceCurrency: "USD" },
+    { "@type": "Offer", name: "Label", price: "29", priceCurrency: "USD" },
+  ],
+};
 
 export default function Home() {
   return (
     <main>
+      {/* SEO: structured data */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
       {/* ── NAV ─────────────────────────────────────────── */}
       <nav className="fixed top-0 inset-x-0 z-50 border-b border-border bg-bg/70 backdrop-blur-xl">
         <div className="mx-auto max-w-6xl flex items-center justify-between px-6 py-4">

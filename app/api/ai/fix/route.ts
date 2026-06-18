@@ -29,16 +29,23 @@ export async function POST(req: Request) {
   // Anonymous requests are intentionally allowed so the public marketing demo
   // on the landing page keeps working without a login.
   if (userId) {
+    let allowed = false;
     try {
-      if (!(await canUseAI(userId))) {
-        return Response.json(
-          { data: null, error: "AI fixes are a Pro feature. Upgrade to Pro for AI-powered suggestions." },
-          { status: 403 }
-        );
-      }
+      allowed = await canUseAI(userId);
     } catch (err) {
-      // Don't hard-fail paying users if the usage lookup hiccups.
-      console.warn("AI gating check failed, allowing request:", err);
+      // Fail closed: if we can't verify entitlement, don't hand out AI access
+      // (otherwise a transient DB error lets free-tier users bypass the gate).
+      console.error("AI gating check failed:", err);
+      return Response.json(
+        { data: null, error: "Couldn't verify your subscription right now. Please try again." },
+        { status: 503 }
+      );
+    }
+    if (!allowed) {
+      return Response.json(
+        { data: null, error: "AI fixes are a Pro feature. Upgrade to Pro for AI-powered suggestions." },
+        { status: 403 }
+      );
     }
   }
 
