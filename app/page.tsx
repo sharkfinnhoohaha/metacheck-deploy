@@ -16,12 +16,13 @@ export default function Home() {
           <div className="flex items-center gap-6">
             <a href="#features" className="text-sm text-text-muted hover:text-text transition-colors">Features</a>
             <a href="#pricing" className="text-sm text-text-muted hover:text-text transition-colors">Pricing</a>
-            <a
-              href="#waitlist"
+            <Link href="/sign-in" className="text-sm text-text-muted hover:text-text transition-colors">Sign in</Link>
+            <Link
+              href="/dashboard"
               className="text-sm px-4 py-2 bg-accent text-white rounded-lg font-medium hover:bg-accent-bright transition-colors"
             >
-              Join Waitlist
-            </a>
+              Open App →
+            </Link>
           </div>
         </div>
       </nav>

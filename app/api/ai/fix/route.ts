@@ -1,7 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { z } from "zod";
-import { trackUsage } from "@/lib/auth/index";
+import { trackUsage, canUseAI } from "@/lib/auth/index";
 import { AI_FIX_SYSTEM_PROMPT } from "@/lib/ai/prompts";
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
@@ -24,10 +24,23 @@ const RequestSchema = z.object({
 
 export async function POST(req: Request) {
   const { userId } = await auth();
-  
-  // For the demo/prototype, we'll allow unauthenticated requests.
-  // In a production app, you would strictly enforce this.
-  // if (!userId) return Response.json({ data: null, error: "Unauthorized" }, { status: 401 });
+
+  // Authenticated users must be on a paid tier and have AI quota remaining.
+  // Anonymous requests are intentionally allowed so the public marketing demo
+  // on the landing page keeps working without a login.
+  if (userId) {
+    try {
+      if (!(await canUseAI(userId))) {
+        return Response.json(
+          { data: null, error: "AI fixes are a Pro feature. Upgrade to Pro for AI-powered suggestions." },
+          { status: 403 }
+        );
+      }
+    } catch (err) {
+      // Don't hard-fail paying users if the usage lookup hiccups.
+      console.warn("AI gating check failed, allowing request:", err);
+    }
+  }
 
   // Parse and validate body
   let body: unknown;

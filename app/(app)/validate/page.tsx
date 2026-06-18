@@ -68,6 +68,36 @@ const FIELDS: { key: keyof TrackMeta; label: string; placeholder?: string; requi
   { key: "duration", label: "Duration", placeholder: "3:45" },
 ];
 
+// Maps a ValidationResult.field (human label from the engine, e.g. "Copyright")
+// to its TrackMeta key. The form labels differ ("Copyright (℗)", "UPC / Barcode",
+// etc.), so matching on form labels silently fails — this map is the source of truth.
+const RESULT_FIELD_TO_KEY: Record<string, keyof TrackMeta> = {
+  "isrc": "isrc",
+  "title": "title",
+  "artist": "artist",
+  "featured artists": "featuredArtists",
+  "album": "album",
+  "upc": "upc",
+  "genre": "genre",
+  "release date": "releaseDate",
+  "songwriters": "songwriters",
+  "producers": "producers",
+  "composers": "composers",
+  "copyright": "copyright",
+  "explicit": "explicit",
+  "language": "language",
+  "label": "label",
+  "duration": "duration",
+  "track number": "trackNumber",
+};
+
+function resolveFieldKey(field: string): keyof TrackMeta | undefined {
+  return (
+    RESULT_FIELD_TO_KEY[field.toLowerCase().trim()] ??
+    FIELDS.find((f) => f.label.toLowerCase() === field.toLowerCase())?.key
+  );
+}
+
 // ── Severity badge styles ─────────────────────────────────────────────────────
 const SEV: Record<string, { badge: string; dotClass: string; border: string }> = {
   critical: { badge: "text-[#fda4af] bg-red-950/40", dotClass: "bg-rose-500", border: "border-red-500/20" },
@@ -237,11 +267,10 @@ export default function ValidatePage() {
   const applyFix = (result: ValidationResult) => {
     if (!result.suggestion) return;
     const idx = result.trackIndex ?? 0;
-    const fieldKey = FIELDS.find((f) => f.label.toLowerCase() === result.field.toLowerCase())?.key;
-    if (fieldKey) {
-      setFixedTracks((prev) => prev.map((t, i) => i === idx ? { ...t, [fieldKey]: result.suggestion! } : t));
-      setTracks((prev) => prev.map((t, i) => i === idx ? { ...t, [fieldKey]: result.suggestion! } : t));
-    }
+    const fieldKey = resolveFieldKey(result.field);
+    if (!fieldKey) return; // unknown field — don't mark fixed if we can't apply it
+    setFixedTracks((prev) => prev.map((t, i) => i === idx ? { ...t, [fieldKey]: result.suggestion! } : t));
+    setTracks((prev) => prev.map((t, i) => i === idx ? { ...t, [fieldKey]: result.suggestion! } : t));
     setResults((prev) =>
       prev?.map((r) => r.rule === result.rule && r.trackIndex === result.trackIndex ? { ...r, _fixed: true } : r) ?? null
     );
@@ -251,16 +280,20 @@ export default function ValidatePage() {
   const applyAllFixes = () => {
     const fixable = results?.filter((r) => r.fixable && !r._fixed && r.suggestion) ?? [];
     let updated = [...fixedTracks];
+    const appliedRules = new Set<string>();
     fixable.forEach((r) => {
       const idx = r.trackIndex ?? 0;
-      const fieldKey = FIELDS.find((f) => f.label.toLowerCase() === r.field.toLowerCase())?.key;
+      const fieldKey = resolveFieldKey(r.field);
       if (fieldKey) {
         updated = updated.map((t, i) => i === idx ? { ...t, [fieldKey]: r.suggestion! } : t);
+        appliedRules.add(`${r.rule}:${r.trackIndex ?? -1}`);
       }
     });
     setFixedTracks(updated);
     setTracks(updated);
-    setResults((prev) => prev?.map((r) => (r.fixable && r.suggestion ? { ...r, _fixed: true } : r)) ?? null);
+    setResults((prev) => prev?.map((r) => (
+      appliedRules.has(`${r.rule}:${r.trackIndex ?? -1}`) ? { ...r, _fixed: true } : r
+    )) ?? null);
   };
 
   // AI suggestions

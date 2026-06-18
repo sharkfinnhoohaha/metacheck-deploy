@@ -39,7 +39,44 @@ The app is ready for environment setup and deployment. See **Next Steps** at the
 
 ### Files added
 
-- `.env.example` — documents all 12 required environment variables with setup notes.
+- `.env.example` — documents all required environment variables with setup notes.
+
+---
+
+## Audit & fixes pass (18 June 2026)
+
+A full functional audit was run. The codebase builds cleanly and the public surface
+(landing page, live demo, iTunes search, validation engine) works end-to-end. The
+following **functional bugs were found and fixed** in this pass:
+
+- **Authenticated reads returned no data (RLS mismatch).** Dashboard / History /
+  Settings / release-detail are Server Components that read Supabase via the anon
+  cookie client — but auth is **Clerk**, not Supabase Auth, so no JWT ever reached
+  Postgres and the RLS policy (`clerk_id = auth.jwt()->>'sub'`) matched nothing.
+  Every read came back empty even though writes succeeded. **Fix:** these pages now
+  read through the service-role client (`supabaseAdmin`) scoped by the authenticated
+  Clerk `userId`, mirroring the existing `/api/releases` route. RLS remains as
+  defense-in-depth for any direct anon access.
+- **"Apply fix" silently no-op'd for some fields (e.g. Copyright).** `applyFix`
+  matched the engine's field label (`"Copyright"`) against the form label
+  (`"Copyright (℗)"`), which never matched — it marked the issue "Fixed ✓" without
+  changing the value. **Fix:** added an explicit `RESULT_FIELD_TO_KEY` map in
+  `validate/page.tsx`.
+- **No sign-in / sign-up pages existed.** `redirect("/sign-in")` 404'd. **Fix:**
+  added Clerk catch-all routes `app/sign-in/[[...sign-in]]` and `app/sign-up/[[...sign-up]]`.
+- **No way into the app from the landing page.** **Fix:** added `Sign in` and
+  `Open App →` links to the marketing nav.
+- **AI tier gating was never enforced.** `canUseAI()` existed but was never called.
+  **Fix:** `/api/ai/fix` now enforces `canUseAI()` for authenticated users (free tier
+  → 403 upgrade prompt); anonymous requests (the public demo) stay open and fall back
+  to rule-based fixes when no AI key is configured.
+- **Doc/env drift.** Removed the stale `.env.local.example` (referenced a non-existent
+  `ANTHROPIC_API_KEY`); `.env.example` (Gemini) is the single source of truth.
+
+**Still requires the operator (you) — cannot be done from code:** create the Supabase,
+Clerk, Stripe and Google Gemini accounts, fill `.env.local`, run the SQL migration, wire
+the webhooks, and deploy. See **Next Steps** at the bottom. Production also requires real
+Clerk keys — `next start` 500s without them (dev uses Clerk keyless mode automatically).
 
 ---
 
@@ -54,7 +91,9 @@ This is a Next.js 15 (App Router) project.
 - **Auth**: Clerk (`@clerk/nextjs`)
 - **Database**: Supabase (Postgres + RLS). Use `@supabase/ssr` for server/client.
 - **Payments**: Stripe subscriptions (`stripe` SDK)
-- **AI**: Anthropic Claude API (`@anthropic-ai/sdk`) — model: `claude-sonnet-4-20250514`
+- **AI**: Google Gemini API (`@google/generative-ai`) — model: `gemini-2.0-flash`.
+  (Earlier drafts of this doc referenced Anthropic Claude; the *implemented* engine is Gemini.
+  Use `GEMINI_API_KEY`, not `ANTHROPIC_API_KEY`.)
 - **Styling**: Tailwind CSS v4 (already configured). Dark theme with teal accent (`#0d9488`).
 - **File parsing**: `papaparse` for CSV parsing
 - **PDF export**: `@react-pdf/renderer` or `jspdf` for generating clean PDF reports
@@ -175,7 +214,9 @@ The codebase is complete. To go live, complete these steps in order:
   - Then re-run the migration
 - [ ] Copy **Project URL** and **anon key** → `.env.local`
 - [ ] Copy **service_role key** (Settings → API) → `.env.local` as `SUPABASE_SERVICE_KEY`
-- [ ] In Supabase Auth settings, add your Clerk JWT public key so `auth.jwt()` works
+- [ ] _(Optional, defense-in-depth)_ The app reads through the service-role key scoped by
+  Clerk user ID, so RLS is no longer required for the app to function. Only add your Clerk
+  JWT public key in Supabase Auth settings if you also want anon-key reads to satisfy RLS.
 
 ### 2. Clerk
 - [ ] Create a Clerk application at [clerk.com](https://clerk.com)
@@ -183,7 +224,10 @@ The codebase is complete. To go live, complete these steps in order:
 - [ ] Add webhook endpoint: `{APP_URL}/api/webhooks/clerk`
   - Events: `user.created`, `user.updated`, `user.deleted`
 - [ ] Copy **Webhook Signing Secret** → `.env.local` as `CLERK_WEBHOOK_SECRET`
-- [ ] In Clerk JWT Templates, add a template named `supabase` that includes `{ "sub": user.id }` as the JWT payload so Supabase RLS can read it
+- [ ] Set `NEXT_PUBLIC_CLERK_SIGN_IN_URL=/sign-in` and `NEXT_PUBLIC_CLERK_SIGN_UP_URL=/sign-up`
+  (the app ships catch-all `app/sign-in` / `app/sign-up` routes)
+- [ ] _(Optional)_ Only needed if you enabled the RLS/anon-key path above: in Clerk JWT
+  Templates, add a template named `supabase` that includes `{ "sub": user.id }`
 
 ### 3. Stripe
 - [ ] Create a Stripe account at [stripe.com](https://stripe.com)
@@ -195,9 +239,11 @@ The codebase is complete. To go live, complete these steps in order:
   - Events: `checkout.session.completed`, `customer.subscription.updated`, `customer.subscription.deleted`
 - [ ] Copy **Webhook Signing Secret** → `.env.local` as `STRIPE_WEBHOOK_SECRET`
 
-### 4. Anthropic
-- [ ] Get an API key at [console.anthropic.com](https://console.anthropic.com)
-- [ ] Copy → `.env.local` as `ANTHROPIC_API_KEY`
+### 4. Google Gemini (AI)
+- [ ] Get an API key at [aistudio.google.com/app/apikey](https://aistudio.google.com/app/apikey)
+- [ ] Copy → `.env.local` as `GEMINI_API_KEY`
+- Note: without this key the AI route still responds, but falls back to rule-based
+  suggestions (used by the public demo). A real key enables true AI fixes.
 
 ### 5. Local environment
 - [ ] Copy `.env.example` → `.env.local`
@@ -216,5 +262,5 @@ The codebase is complete. To go live, complete these steps in order:
 - [ ] Sign up as a new user — check Supabase `users` table is populated via Clerk webhook
 - [ ] Run a validation — check `usage` table increments
 - [ ] Upgrade to Pro via Stripe test mode — check `users.tier` updates via Stripe webhook
-- [ ] Run an AI fix on a Pro account — check Claude responds and `usage.ai_calls` increments
+- [ ] Run an AI fix on a Pro account — check Gemini responds and `usage.ai_calls` increments
 - [ ] Export a CSV and a PDF — verify downloads work
