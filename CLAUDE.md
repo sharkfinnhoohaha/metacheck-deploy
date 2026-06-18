@@ -80,6 +80,33 @@ Clerk keys — `next start` 500s without them (dev uses Clerk keyless mode autom
 
 ---
 
+## PayPal billing (additive — June 2026)
+
+PayPal was added **alongside** Stripe (not as a replacement) so customers can choose
+how to pay. Both providers write the same `users.tier` column; the webhook is the
+source of truth, mirroring the Stripe design.
+
+- `lib/paypal/index.ts` — OAuth token caching + REST helpers (`createSubscription`,
+  `cancelSubscription`, `verifyWebhookSignature`). The official PayPal Node SDK does
+  **not** cover Subscriptions, so these call the REST API directly.
+- `app/api/paypal/checkout/route.ts` — `GET ?tier=pro|team` → creates a subscription,
+  redirects to PayPal's approval URL (`custom_id` carries the Clerk user ID).
+- `app/api/webhooks/paypal/route.ts` — verifies the signature, then maps
+  `BILLING.SUBSCRIPTION.ACTIVATED/UPDATED` → tier and `…CANCELLED/EXPIRED/SUSPENDED`
+  → free. `/api/webhooks/(.*)` is already public in `middleware.ts`.
+- `app/api/paypal/cancel/route.ts` — PayPal has **no hosted billing portal**, so this
+  is the cancel action (the Settings page shows it for PayPal subscribers).
+- `supabase/migrations/002_paypal.sql` — adds `users.paypal_subscription_id`
+  (already applied to the live project).
+
+**Operator setup (PayPal):** at developer.paypal.com create an app (Client ID/Secret),
+create two subscription **Plans** ($9/mo Pro, $29/mo Label) and copy the plan IDs, then
+add a webhook → `{APP_URL}/api/webhooks/paypal` (all `BILLING.SUBSCRIPTION.*` events) and
+copy its Webhook ID. Fill `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET`, `PAYPAL_ENV`
+(`sandbox`/`live`), `PAYPAL_PRO_PLAN_ID`, `PAYPAL_TEAM_PLAN_ID`, `PAYPAL_WEBHOOK_ID`.
+
+---
+
 ## Context
 MetaCheck is a music metadata validation SaaS. The landing page is live on Vercel.
 All authenticated app routes have been built alongside the marketing page.
