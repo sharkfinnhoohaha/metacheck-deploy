@@ -6,11 +6,11 @@
   --color-bg-elevated: #111114;
   --color-bg-card: #16161a;
   --color-surface: #1e1e23;
-  --color-border: #2a2a30;
-  --color-border-bright: #3a3a42;
-  --color-text: #e8e6e3;
-  --color-text-muted: #8a8a95;
-  --color-text-dim: #5a5a65;
+  --color-border: #232329;
+  --color-border-bright: #34343c;
+  --color-text: #ededeb;
+  --color-text-muted: #9a9aa5;
+  --color-text-dim: #62626d;
   --color-accent: #0d9488;
   --color-accent-bright: #14b8a6;
   --color-accent-glow: rgba(13, 148, 136, 0.15);
@@ -21,6 +21,10 @@
   --font-display: 'Instrument Serif', Georgia, serif;
   --font-body: 'Outfit', system-ui, sans-serif;
   --font-mono: 'IBM Plex Mono', monospace;
+
+  /* Motion system */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-spring: cubic-bezier(0.22, 1.2, 0.36, 1);
 }
 
 @layer base {
@@ -31,10 +35,17 @@
     background: var(--color-bg);
     font-family: var(--font-body);
     -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
   }
   ::selection {
     background: var(--color-accent);
     color: white;
+  }
+  /* Consistent, calm focus ring across interactive elements */
+  :focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 2px var(--color-bg), 0 0 0 4px var(--color-accent);
+    border-radius: 0.5rem;
   }
 }
 
@@ -45,7 +56,7 @@
   inset: 0;
   z-index: 9999;
   pointer-events: none;
-  opacity: 0.025;
+  opacity: 0.02;
   background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='1'/%3E%3C/svg%3E");
   background-repeat: repeat;
   background-size: 256px 256px;
@@ -53,25 +64,54 @@
 
 /* Glow effect for accent elements */
 .glow-teal {
-  box-shadow: 0 0 40px rgba(13, 148, 136, 0.12), 0 0 80px rgba(13, 148, 136, 0.06);
+  box-shadow: 0 0 40px rgba(13, 148, 136, 0.12), 0 0 80px rgba(13, 148, 136, 0.05);
 }
 
-/* Staggered fade-in animation */
+/* ── Entrance animations ─────────────────────────────── */
 @keyframes fadeUp {
-  from { opacity: 0; transform: translateY(20px); }
+  from { opacity: 0; transform: translateY(16px); }
   to { opacity: 1; transform: translateY(0); }
 }
-.fade-up {
-  animation: fadeUp 0.6s ease-out both;
-}
-.fade-up-1 { animation-delay: 0.1s; }
-.fade-up-2 { animation-delay: 0.2s; }
-.fade-up-3 { animation-delay: 0.3s; }
-.fade-up-4 { animation-delay: 0.4s; }
-.fade-up-5 { animation-delay: 0.5s; }
-.fade-up-6 { animation-delay: 0.6s; }
+.fade-up { animation: fadeUp 0.7s var(--ease-out) both; }
+.fade-up-1 { animation-delay: 0.05s; }
+.fade-up-2 { animation-delay: 0.12s; }
+.fade-up-3 { animation-delay: 0.19s; }
+.fade-up-4 { animation-delay: 0.26s; }
+.fade-up-5 { animation-delay: 0.33s; }
+.fade-up-6 { animation-delay: 0.40s; }
 
-/* Gradient border */
+/* ── Scroll-reveal (paired with <Reveal> IntersectionObserver) ── */
+.reveal {
+  opacity: 0;
+  transform: translateY(24px);
+  transition: opacity 0.7s var(--ease-out), transform 0.7s var(--ease-out);
+  will-change: opacity, transform;
+}
+.reveal.is-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* ── Route transition (used by template.tsx) ─────────── */
+@keyframes pageIn {
+  from { opacity: 0; transform: translateY(8px) scale(0.995); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.page-in { animation: pageIn 0.45s var(--ease-out) both; }
+
+/* ── Micro-interactions ──────────────────────────────── */
+/* Lift on hover for cards/links */
+.lift {
+  transition: transform 0.3s var(--ease-out), border-color 0.3s var(--ease-out), background-color 0.3s var(--ease-out), box-shadow 0.3s var(--ease-out);
+  will-change: transform;
+}
+.lift:hover { transform: translateY(-3px); }
+
+/* Tactile press for buttons */
+.press { transition: transform 0.12s var(--ease-out), background-color 0.2s var(--ease-out), box-shadow 0.3s var(--ease-out); }
+.press:active { transform: scale(0.97); }
+
+/* Soft gradient border (full perimeter, subtle) */
 .gradient-border {
   position: relative;
 }
@@ -81,7 +121,7 @@
   inset: 0;
   border-radius: inherit;
   padding: 1px;
-  background: linear-gradient(135deg, var(--color-accent), transparent 60%);
+  background: linear-gradient(135deg, var(--color-accent), transparent 55%);
   -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
   -webkit-mask-composite: xor;
   mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
@@ -89,19 +129,51 @@
   pointer-events: none;
 }
 
-/* Smooth pulse for the live demo */
+/* Animated conic ring for the most important card / score */
+@keyframes spin-slow { to { transform: rotate(360deg); } }
+
+/* Smooth pulse for live indicators */
 @keyframes pulse-soft {
   0%, 100% { opacity: 1; }
-  50% { opacity: 0.6; }
+  50% { opacity: 0.55; }
 }
-.pulse-soft { animation: pulse-soft 2s ease-in-out infinite; }
+.pulse-soft { animation: pulse-soft 2.4s ease-in-out infinite; }
+
+/* Shimmer for skeleton/loading states */
+@keyframes shimmer { 100% { transform: translateX(100%); } }
+.shimmer { position: relative; overflow: hidden; }
+.shimmer::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.04), transparent);
+  animation: shimmer 1.6s infinite;
+}
+
+/* Dropdown / popover entrance */
+@keyframes popIn {
+  from { opacity: 0; transform: translateY(-6px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.pop-in { animation: popIn 0.2s var(--ease-out) both; }
 
 /* Thin scrollbar for result lists */
 .scrollbar-thin {
   scrollbar-width: thin;
   scrollbar-color: var(--color-border-bright) transparent;
 }
-/* Safari / WebKit fallback */
 .scrollbar-thin::-webkit-scrollbar { width: 4px; }
 .scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
 .scrollbar-thin::-webkit-scrollbar-thumb { background-color: var(--color-border-bright); border-radius: 2px; }
+
+/* ── Respect reduced-motion ──────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+  .reveal { opacity: 1; transform: none; }
+}

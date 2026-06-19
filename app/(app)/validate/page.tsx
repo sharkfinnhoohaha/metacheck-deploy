@@ -6,7 +6,9 @@ import type { TrackMeta, ValidationResult, ArtworkCheckResult } from "@/lib/vali
 import { validateRelease, getGrade } from "@/lib/validation/rules";
 import { PROFILES, getProfile } from "@/lib/validation/profiles";
 import { checkArtworkFile, scanArtworkText } from "@/lib/validation/artwork";
+import { checkSyncReadiness, CATEGORY_LABEL, type SyncCategory } from "@/lib/validation/sync";
 import { exportCsv } from "@/lib/export/csv";
+import { IconCheck, IconClapper, IconArrowRight, IconUpload, IconChevronDown } from "@/app/_components/icons";
 
 // ── CSV column auto-mapping ───────────────────────────────────────────────────
 const CSV_MAP: Record<string, keyof TrackMeta> = {
@@ -47,7 +49,9 @@ function emptyTrack(trackNumber?: number): TrackMeta {
     title: "", artist: "", featuredArtists: "", album: "",
     isrc: "", upc: "", genre: "", releaseDate: "", label: "",
     songwriters: "", splits: "", iswc: "", producers: "", composers: "", copyright: "",
-    explicit: "", language: "", duration: "",
+    explicit: "", language: "", duration: "", aiDisclosure: "",
+    bpm: "", musicalKey: "", moodTags: "", instrumentalAvailable: "",
+    cleanVersionAvailable: "", stemsAvailable: "", oneStopClearance: "", licensingContact: "",
   };
 }
 
@@ -72,6 +76,7 @@ const FIELDS: { key: keyof TrackMeta; label: string; placeholder?: string; requi
   { key: "explicit", label: "Explicit", placeholder: "true / false / clean" },
   { key: "language", label: "Language", placeholder: "en" },
   { key: "duration", label: "Duration", placeholder: "3:45" },
+  { key: "aiDisclosure", label: "AI Disclosure", placeholder: "none / ai-assisted / ai-vocals / fully-ai" },
 ];
 
 // Maps a ValidationResult.field (human label from the engine, e.g. "Copyright")
@@ -97,6 +102,7 @@ const RESULT_FIELD_TO_KEY: Record<string, keyof TrackMeta> = {
   "track number": "trackNumber",
   "splits": "splits",
   "iswc": "iswc",
+  "ai disclosure": "aiDisclosure",
 };
 
 function resolveFieldKey(field: string): keyof TrackMeta | undefined {
@@ -132,9 +138,9 @@ function TrackForm({
   showRemove: boolean;
 }) {
   return (
-    <div className="rounded-xl border border-border bg-bg-card p-5">
+    <div className="rounded-2xl border border-border bg-bg-card p-5">
       <div className="flex items-center justify-between mb-4">
-        <h3 className="font-mono text-sm text-text-muted">Track {idx + 1}</h3>
+        <h3 className="text-sm font-medium text-text-muted">Track {idx + 1}</h3>
         {showRemove && (
           <button
             type="button"
@@ -148,7 +154,7 @@ function TrackForm({
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         {FIELDS.map((f) => (
           <div key={f.key} className={f.key === "songwriters" || f.key === "producers" || f.key === "splits" ? "sm:col-span-2" : ""}>
-            <label className="block text-xs font-mono text-text-dim mb-1">
+            <label className="block text-xs text-text-dim mb-1.5">
               {f.label}{f.required && <span className="text-red/70 ml-1">*</span>}
             </label>
             <input
@@ -199,14 +205,14 @@ function ResultCard({
         {result.fixable && !result._fixed && (
           <button
             onClick={() => onApplyFix?.(result)}
-            className="shrink-0 text-xs px-3 py-1.5 rounded-lg bg-accent/10 text-accent-bright border border-accent/20 hover:bg-accent/20 transition-colors font-mono"
+            className="press shrink-0 text-xs px-3 py-1.5 rounded-lg bg-accent/10 text-accent-bright border border-accent/20 hover:bg-accent/20 transition-colors"
           >
             Apply fix
           </button>
         )}
         {result._fixed && (
-          <span className="shrink-0 text-xs px-3 py-1.5 rounded-lg bg-green/10 text-green border border-green/20 font-mono">
-            Fixed ✓
+          <span className="shrink-0 inline-flex items-center gap-1 text-xs px-3 py-1.5 rounded-lg bg-green/10 text-green border border-green/20">
+            <IconCheck size={13} /> Fixed
           </span>
         )}
       </div>
@@ -228,6 +234,148 @@ function ArtworkRow({ a }: { a: ArtworkCheckResult }) {
     <div className="flex items-start gap-3 rounded-lg border border-border bg-surface/50 px-4 py-3">
       <span className={`mt-1 w-2 h-2 rounded-full shrink-0 ${s.dot}`} />
       <p className={`text-sm leading-relaxed ${a.severity === "success" ? s.text : "text-text"}`}>{a.message}</p>
+    </div>
+  );
+}
+
+// ── Sync-Ready panel ──────────────────────────────────────────────────────────
+const SYNC_TOGGLES: { key: keyof TrackMeta; label: string }[] = [
+  { key: "instrumentalAvailable", label: "Instrumental" },
+  { key: "cleanVersionAvailable", label: "Clean version" },
+  { key: "stemsAvailable", label: "Stems" },
+  { key: "oneStopClearance", label: "One-stop clearance" },
+];
+
+function isYesVal(v?: string) {
+  const s = (v || "").trim().toLowerCase();
+  return s === "true" || s === "yes" || s === "y" || s === "1" || s === "available";
+}
+
+function SyncPanel({
+  track, onChange,
+}: {
+  track: TrackMeta;
+  onChange: (key: keyof TrackMeta, val: string) => void;
+}) {
+  const r = checkSyncReadiness(track);
+  const tone =
+    r.score >= 80 ? { text: "text-green-400", ring: "var(--color-green)", chip: "bg-green/10 text-green border-green/20" }
+    : r.score >= 50 ? { text: "text-amber-400", ring: "var(--color-amber)", chip: "bg-amber/10 text-amber border-amber/20" }
+    : { text: "text-rose-400", ring: "var(--color-red)", chip: "bg-red/10 text-red border-red/20" };
+  const cats: SyncCategory[] = ["clearable", "usable", "discoverable"];
+  const unmet = r.checks.filter((c) => !c.earned);
+
+  return (
+    <div className="space-y-5">
+      {/* Score header */}
+      <div className="flex flex-col sm:flex-row items-center gap-6">
+        {/* eslint-disable-next-line react/forbid-dom-props */}
+        <div
+          className="relative w-28 h-28 rounded-full shrink-0 grid place-items-center"
+          style={{ background: `conic-gradient(${tone.ring} ${r.score * 3.6}deg, var(--color-surface) 0deg)` }}
+        >
+          <div className="absolute inset-[6px] rounded-full bg-bg-card grid place-items-center">
+            <span className={`font-display text-4xl ${tone.text}`}>{r.score}</span>
+          </div>
+        </div>
+        <div className="text-center sm:text-left">
+          <span className={`inline-block text-xs font-medium px-2.5 py-1 rounded-full border ${tone.chip} mb-2`}>{r.tier}</span>
+          <p className="text-sm text-text-muted max-w-sm leading-relaxed">
+            How licensable this track is for film, TV, ads &amp; games — scored on how easily a supervisor can
+            <span className="text-text"> clear</span>, <span className="text-text">use</span>, and <span className="text-text">find</span> it.
+          </p>
+        </div>
+      </div>
+
+      {/* Category bars */}
+      <div className="grid sm:grid-cols-3 gap-3">
+        {cats.map((c) => {
+          const b = r.breakdown[c];
+          const pct = b.possible ? Math.round((b.earned / b.possible) * 100) : 0;
+          return (
+            <div key={c} className="rounded-xl border border-border bg-surface/40 p-4">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm text-text">{CATEGORY_LABEL[c]}</span>
+                <span className="text-xs text-text-dim">{b.earned}/{b.possible}</span>
+              </div>
+              <div className="h-1.5 rounded-full bg-surface overflow-hidden">
+                {/* eslint-disable-next-line react/forbid-dom-props */}
+                <div className="h-full rounded-full bg-accent-bright transition-[width] duration-500" style={{ width: `${pct}%` }} />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Inputs */}
+      <div className="rounded-xl border border-border bg-surface/30 p-4 space-y-4">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {[
+            { key: "bpm" as const, label: "BPM", ph: "120" },
+            { key: "musicalKey" as const, label: "Key", ph: "A minor" },
+          ].map((f) => (
+            <div key={f.key}>
+              <label className="block text-xs text-text-dim mb-1.5">{f.label}</label>
+              <input
+                value={(track[f.key] as string) ?? ""}
+                onChange={(e) => onChange(f.key, e.target.value)}
+                placeholder={f.ph}
+                className="w-full px-3 py-2 rounded-lg bg-bg border border-border text-sm text-text placeholder-text-dim focus:outline-none focus:border-accent transition-colors"
+              />
+            </div>
+          ))}
+          <div className="col-span-2">
+            <label className="block text-xs text-text-dim mb-1.5">Licensing contact</label>
+            <input
+              value={track.licensingContact ?? ""}
+              onChange={(e) => onChange("licensingContact", e.target.value)}
+              placeholder="sync@yourlabel.com"
+              className="w-full px-3 py-2 rounded-lg bg-bg border border-border text-sm text-text placeholder-text-dim focus:outline-none focus:border-accent transition-colors"
+            />
+          </div>
+        </div>
+        <div>
+          <label className="block text-xs text-text-dim mb-1.5">Mood / scene tags</label>
+          <input
+            value={track.moodTags ?? ""}
+            onChange={(e) => onChange("moodTags", e.target.value)}
+            placeholder="uplifting, cinematic, hopeful, driving"
+            className="w-full px-3 py-2 rounded-lg bg-bg border border-border text-sm text-text placeholder-text-dim focus:outline-none focus:border-accent transition-colors"
+          />
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {SYNC_TOGGLES.map((t) => {
+            const on = isYesVal(track[t.key] as string);
+            return (
+              <button
+                key={t.key}
+                type="button"
+                onClick={() => onChange(t.key, on ? "" : "true")}
+                className={`press inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm border transition-colors ${
+                  on ? "bg-accent/15 text-accent-bright border-accent/30" : "bg-bg border-border text-text-muted hover:text-text"
+                }`}
+              >
+                {on && <IconCheck size={14} />}{t.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* What's missing */}
+      {unmet.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-xs text-text-dim uppercase tracking-wider">To raise the score</p>
+          {unmet.map((c, i) => (
+            <div key={i} className="flex items-start gap-3 rounded-lg border border-border bg-bg-elevated px-4 py-3">
+              <span className={`mt-1.5 w-2 h-2 rounded-full shrink-0 ${
+                c.severity === "critical" ? "bg-rose-500" : c.severity === "warning" ? "bg-amber-500" : "bg-blue-500"
+              }`} />
+              <p className="text-sm text-text leading-relaxed">{c.message}</p>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -275,6 +423,8 @@ export default function ValidatePage() {
   const [artworkTextResults, setArtworkTextResults] = useState<ArtworkCheckResult[] | null>(null);
   const [artworkScanning, setArtworkScanning] = useState(false);
   const [artworkFile, setArtworkFile] = useState<File | null>(null);
+  // Sync-Ready (music-supervision) panel — opt-in to keep the page uncluttered.
+  const [showSync, setShowSync] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const artworkInputRef = useRef<HTMLInputElement>(null);
 
@@ -531,12 +681,14 @@ export default function ValidatePage() {
       {(mode === "csv" || mode === "batch") && (
         <div className="mb-6">
           <div
-            className="rounded-xl border-2 border-dashed border-border hover:border-accent/50 transition-colors p-10 text-center cursor-pointer"
+            className="rounded-2xl border-2 border-dashed border-border hover:border-accent/50 hover:bg-surface/30 transition-colors p-10 text-center cursor-pointer"
             onClick={() => fileInputRef.current?.click()}
           >
-            <p className="text-2xl mb-3">{mode === "batch" ? "🗂️" : "📂"}</p>
-            <p className="text-text-muted text-sm mb-1">Click to upload or drag & drop your CSV</p>
-            <p className="text-xs font-mono text-text-dim">
+            <div className="w-12 h-12 rounded-xl bg-accent/10 text-accent-bright flex items-center justify-center mx-auto mb-4">
+              <IconUpload size={22} />
+            </div>
+            <p className="text-text-muted text-sm mb-1">Click to upload or drag &amp; drop your CSV</p>
+            <p className="text-xs text-text-dim">
               {mode === "batch"
                 ? "Multiple releases — rows are grouped into releases by album, each QC'd separately"
                 : "DistroKid, TuneCore, CD Baby export formats supported"}
@@ -597,9 +749,9 @@ export default function ValidatePage() {
         <button
           onClick={runValidation}
           disabled={isRunning}
-          className="w-full py-4 rounded-xl bg-accent text-white font-semibold text-sm hover:bg-accent-bright transition-colors glow-teal disabled:opacity-50"
+          className="press w-full py-4 rounded-xl bg-accent text-white font-semibold text-sm hover:bg-accent-bright transition-colors glow-teal disabled:opacity-50 inline-flex items-center justify-center gap-2"
         >
-          {isRunning ? "Scanning…" : "Run Validation →"}
+          {isRunning ? "Scanning…" : <>Run validation <IconArrowRight size={16} /></>}
         </button>
       )}
 
@@ -659,6 +811,38 @@ export default function ValidatePage() {
         </div>
       )}
 
+      {/* Sync-Ready score (music supervision) */}
+      {mode !== "batch" && tracks.length > 0 && (
+        <div className="mt-6 rounded-2xl border border-border bg-bg-elevated p-5">
+          <button
+            type="button"
+            onClick={() => setShowSync((v) => !v)}
+            className="w-full flex items-center gap-3 text-left"
+          >
+            <span className="w-9 h-9 rounded-lg bg-accent/10 text-accent-bright flex items-center justify-center shrink-0">
+              <IconClapper size={18} />
+            </span>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2">
+                <h3 className="text-sm font-medium text-text">Sync-Ready score</h3>
+                <span className="text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded bg-accent/10 text-accent-bright border border-accent/20">New</span>
+              </div>
+              <p className="text-xs text-text-dim mt-0.5">
+                Is {tracks.length > 1 ? "track 1" : "this track"} ready to pitch for film &amp; TV licensing? {showSync ? "" : "Tap to check."}
+              </p>
+            </div>
+            <span className={`text-text-dim transition-transform duration-300 ${showSync ? "rotate-90" : ""}`}>
+              <IconArrowRight size={18} />
+            </span>
+          </button>
+          {showSync && (
+            <div className="mt-5 pt-5 border-t border-border">
+              <SyncPanel track={tracks[0]} onChange={(key, val) => updateTrack(0, key, val)} />
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Batch / catalog results */}
       {mode === "batch" && batch && (
         <div className="mt-8 space-y-3">
@@ -694,7 +878,7 @@ export default function ValidatePage() {
                       <span className="text-blue">{sugg} suggestions</span>
                     </p>
                   </div>
-                  <span className="text-text-dim text-xs font-mono shrink-0">{open ? "▲" : "▼"}</span>
+                  <span className={`text-text-dim shrink-0 transition-transform duration-300 ${open ? "rotate-180" : ""}`}><IconChevronDown size={18} /></span>
                 </button>
                 {open && (
                   <div className="px-4 pb-4 space-y-2 border-t border-border pt-3">
@@ -759,9 +943,9 @@ export default function ValidatePage() {
               ) : (
                 <a
                   href={`/history/${savedId}`}
-                  className="px-4 py-2 rounded-lg bg-green/10 border border-green/20 text-sm text-green font-mono hover:bg-green/20 transition-colors"
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-green/10 border border-green/20 text-sm text-green hover:bg-green/20 transition-colors"
                 >
-                  Saved ✓ View →
+                  <IconCheck size={14} /> Saved · View
                 </a>
               )}
             </div>
@@ -815,10 +999,10 @@ export default function ValidatePage() {
             if (!items.length) return null;
             return (
               <div key={sev}>
-                <h3 className="font-mono text-xs text-text-dim uppercase tracking-widest mb-3">
-                  {sev === "critical" ? "🔴" : sev === "warning" ? "🟡" : "🔵"}{" "}
-                  {sev === "critical" ? "Critical Issues" : sev === "warning" ? "Warnings" : "Suggestions"}{" "}
-                  <span className="normal-case">({items.length})</span>
+                <h3 className="flex items-center gap-2 text-xs text-text-dim uppercase tracking-widest mb-3">
+                  <span className={`w-2 h-2 rounded-full ${sev === "critical" ? "bg-rose-500" : sev === "warning" ? "bg-amber-500" : "bg-blue-500"}`} />
+                  {sev === "critical" ? "Critical Issues" : sev === "warning" ? "Warnings" : "Suggestions"}
+                  <span className="normal-case text-text-dim/70">({items.length})</span>
                 </h3>
                 <div className="space-y-2">
                   {items.map((result, i) => (

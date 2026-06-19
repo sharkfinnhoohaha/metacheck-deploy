@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState } from "react";
 import { validateTrack, getGrade as computeGrade } from "@/lib/validation/rules";
 import type { TrackMeta, ValidationResult, AiFix } from "@/lib/validation/types";
+import { IconSearch, IconSparkles, IconCheck } from "./_components/icons";
 
 function validate(t: TrackMeta): ValidationResult[] {
   return validateTrack(t);
@@ -130,7 +131,7 @@ export function LiveDemo() {
           <span className="w-2.5 h-2.5 rounded-full bg-amber/60" />
           <span className="w-2.5 h-2.5 rounded-full bg-green/60" />
         </div>
-        <span className="text-xs font-mono text-text-dim">metacheck — functional prototype</span>
+        <span className="text-xs font-mono text-text-dim">metacheck — live engine</span>
       </div>
 
       {/* Search area */}
@@ -140,7 +141,7 @@ export function LiveDemo() {
             type="text"
             value={query}
             onChange={(e) => handleSearch(e.target.value)}
-            placeholder="Search ANY song in the world (e.g. 'The Weeknd Blinding Lights')"
+            placeholder="Search any song to audit its metadata (e.g. 'The Weeknd Blinding Lights')"
             className="w-full px-4 py-4 bg-bg border border-border-bright rounded-xl text-base text-text placeholder:text-text-dim focus:outline-none focus:border-accent focus:ring-4 focus:ring-accent/10 transition-all shadow-inner"
           />
           {isSearching && (
@@ -152,7 +153,7 @@ export function LiveDemo() {
 
         {/* Dropdown results */}
         {searchResults.length > 0 && (
-          <div className="absolute left-5 right-5 top-[calc(100%-8px)] z-20 bg-bg-card border border-border rounded-xl shadow-2xl max-h-[300px] overflow-y-auto overflow-x-hidden animate-in fade-in slide-in-from-top-2">
+          <div className="pop-in absolute left-5 right-5 top-[calc(100%-8px)] z-20 bg-bg-card border border-border rounded-xl shadow-2xl max-h-[300px] overflow-y-auto overflow-x-hidden">
             {searchResults.map((item) => (
               <button
                 key={item.id}
@@ -177,10 +178,10 @@ export function LiveDemo() {
         {!currentTrack ? (
           <div className="flex items-center justify-center h-[300px] text-text-dim text-sm">
             <div className="text-center">
-              <div className="w-16 h-16 rounded-full bg-accent/5 flex items-center justify-center mx-auto mb-6">
-                <span className="text-3xl opacity-40">🔍</span>
+              <div className="w-16 h-16 rounded-full bg-accent/5 text-accent-bright/50 flex items-center justify-center mx-auto mb-6">
+                <IconSearch size={28} />
               </div>
-              <p className="font-mono text-xs opacity-60">Search for any track to run a metadata audit</p>
+              <p className="text-xs text-text-dim">Search for any track to run a metadata audit</p>
             </div>
           </div>
         ) : (
@@ -205,9 +206,9 @@ export function LiveDemo() {
               <button
                 onClick={runAiFix}
                 disabled={isFixing || results?.length === 0}
-                className="px-4 py-2 bg-accent/10 border border-accent/20 text-accent-bright rounded-lg text-xs font-semibold hover:bg-accent/20 transition-all disabled:opacity-50"
+                className="press inline-flex items-center gap-1.5 px-4 py-2 bg-accent/10 border border-accent/20 text-accent-bright rounded-lg text-xs font-semibold hover:bg-accent/20 transition-all disabled:opacity-50"
               >
-                {isFixing ? "AI is fixing..." : "✨ Fix with AI"}
+                <IconSparkles size={14} /> {isFixing ? "AI is fixing…" : "Fix with AI"}
               </button>
             </div>
 
@@ -236,7 +237,9 @@ export function LiveDemo() {
             <div className="space-y-2 max-h-[320px] overflow-y-auto pr-1 scrollbar-thin">
               {results?.length === 0 ? (
                 <div className="py-10 text-center">
-                  <span className="text-2xl mb-2 block">✅</span>
+                  <div className="w-12 h-12 rounded-full bg-green/10 text-green flex items-center justify-center mx-auto mb-3">
+                    <IconCheck size={22} />
+                  </div>
                   <p className="text-sm text-text-muted">No issues found. Metadata is perfectly formatted.</p>
                 </div>
               ) : (

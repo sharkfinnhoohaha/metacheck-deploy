@@ -1,6 +1,11 @@
 import Link from "next/link";
 import { SITE_URL } from "@/lib/site";
 import { LiveDemo } from "./demo";
+import { Reveal } from "./_components/Reveal";
+import {
+  IconFingerprint, IconPen, IconType, IconClapper, IconRobot, IconSparkles,
+  IconArrowRight, IconArrowDown, IconCheck, IconLock,
+} from "./_components/icons";
 
 const jsonLd = {
   "@context": "https://schema.org",
@@ -9,7 +14,7 @@ const jsonLd = {
   applicationCategory: "BusinessApplication",
   operatingSystem: "Web",
   description:
-    "Scan music release metadata for ISRC errors, missing credits, and 30+ issues that cost royalties. AI suggests fixes before you submit to your distributor.",
+    "Scan music release metadata for ISRC errors, missing credits, and 40+ issues that cost royalties. AI suggests fixes before you submit to your distributor.",
   url: SITE_URL,
   publisher: { "@type": "Organization", name: "Overlook Strategy" },
   offers: [
@@ -19,339 +24,309 @@ const jsonLd = {
   ],
 };
 
+const FEATURES = [
+  {
+    Icon: IconFingerprint,
+    title: "ISRC & UPC integrity",
+    cat: "Rights",
+    desc: "Catches invalid formats, missing codes, and duplicate ISRCs that silently break royalty tracking across every platform.",
+  },
+  {
+    Icon: IconPen,
+    title: "Credits & splits",
+    cat: "Royalties",
+    desc: "Flags missing writers and producers, and enforces writer splits that total 100% — so the MLC and your PRO can actually pay you.",
+  },
+  {
+    Icon: IconType,
+    title: "Title & formatting linter",
+    cat: "Distributor QC",
+    desc: "Fixes wrong “feat.” syntax, ALL-CAPS titles, unbracketed versions, and banned words that trigger instant rejections.",
+  },
+  {
+    Icon: IconClapper,
+    title: "Sync-Ready score",
+    cat: "New · Licensing",
+    desc: "Scores how licensable a track is for film & TV — one-stop clearance, instrumental/clean versions, BPM, key and mood tags supervisors search by.",
+  },
+  {
+    Icon: IconRobot,
+    title: "AI-disclosure check",
+    cat: "New · 2026",
+    desc: "Each distributor treats AI music differently. MetaCheck flags where your disclosure will get a release banned vs. shipped — before you submit.",
+  },
+  {
+    Icon: IconSparkles,
+    title: "One-click AI fixes",
+    cat: "Pro",
+    desc: "Auto-corrects casing, writes copyright lines, suggests genres and fixes featured-artist formatting. Review, apply, export clean files.",
+  },
+];
+
+const OUTCOMES = [
+  { stat: "Pass QC the first time", desc: "Stop bouncing releases off distributor review. Fix every rejection trigger before you hit submit." },
+  { stat: "Keep the royalties you earn", desc: "Missing credits and unregistered splits send your money to the MLC black box. MetaCheck catches them." },
+  { stat: "Get discovered", desc: "Editorial-pitch timing, clean genres, and a sync-ready score that puts your music in front of playlists and supervisors." },
+];
+
 export default function Home() {
   return (
     <main>
-      {/* SEO: structured data */}
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
-      />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+
       {/* ── NAV ─────────────────────────────────────────── */}
-      <nav className="fixed top-0 inset-x-0 z-50 border-b border-border bg-bg/70 backdrop-blur-xl">
-        <div className="mx-auto max-w-6xl flex items-center justify-between px-6 py-4">
+      <nav className="fixed top-0 inset-x-0 z-50 border-b border-border/70 bg-bg/60 backdrop-blur-xl">
+        <div className="mx-auto max-w-6xl flex items-center justify-between px-6 py-3.5">
           <div className="flex items-center gap-2.5">
-            <div className="w-7 h-7 rounded-md bg-accent flex items-center justify-center">
-              <span className="text-white text-xs font-mono font-bold">M</span>
+            <div className="w-7 h-7 rounded-lg bg-accent flex items-center justify-center">
+              <span className="text-white text-sm font-mono font-bold">M</span>
             </div>
-            <span className="font-display text-lg text-text tracking-tight">MetaCheck</span>
+            <span className="font-display text-xl text-text tracking-tight">MetaCheck</span>
           </div>
-          <div className="flex items-center gap-6">
-            <a href="#features" className="text-sm text-text-muted hover:text-text transition-colors">Features</a>
-            <a href="#pricing" className="text-sm text-text-muted hover:text-text transition-colors">Pricing</a>
-            <Link href="/sign-in" className="text-sm text-text-muted hover:text-text transition-colors">Sign in</Link>
+          <div className="flex items-center gap-1 sm:gap-2">
+            <a href="#features" className="hidden sm:block text-sm text-text-muted hover:text-text transition-colors px-3 py-2 rounded-lg">Features</a>
+            <a href="#demo" className="hidden sm:block text-sm text-text-muted hover:text-text transition-colors px-3 py-2 rounded-lg">Demo</a>
+            <a href="#pricing" className="hidden sm:block text-sm text-text-muted hover:text-text transition-colors px-3 py-2 rounded-lg">Pricing</a>
+            <Link href="/sign-in" className="text-sm text-text-muted hover:text-text transition-colors px-3 py-2 rounded-lg">Sign in</Link>
             <Link
               href="/dashboard"
-              className="text-sm px-4 py-2 bg-accent text-white rounded-lg font-medium hover:bg-accent-bright transition-colors"
+              className="press inline-flex items-center gap-1.5 text-sm px-4 py-2 bg-accent text-white rounded-lg font-medium hover:bg-accent-bright"
             >
-              Open App →
+              Open app <IconArrowRight size={15} />
             </Link>
           </div>
         </div>
       </nav>
 
       {/* ── HERO ────────────────────────────────────────── */}
-      <section className="relative pt-32 pb-12 overflow-hidden">
-        {/* Background grid */}
+      <section className="relative pt-36 pb-20 overflow-hidden">
         {/* eslint-disable-next-line react/forbid-dom-props */}
-        <div className="absolute inset-0 opacity-[0.04]" style={{
+        <div className="absolute inset-0 opacity-[0.035]" style={{
           backgroundImage: `linear-gradient(var(--color-border) 1px, transparent 1px), linear-gradient(90deg, var(--color-border) 1px, transparent 1px)`,
-          backgroundSize: "64px 64px",
+          backgroundSize: "72px 72px",
+          maskImage: "radial-gradient(ellipse 80% 60% at 50% 0%, black, transparent 75%)",
+          WebkitMaskImage: "radial-gradient(ellipse 80% 60% at 50% 0%, black, transparent 75%)",
         }} />
-        {/* Radial glow */}
         {/* eslint-disable-next-line react/forbid-dom-props */}
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[600px] rounded-full"
-          style={{ background: "radial-gradient(ellipse, rgba(13,148,136,0.08) 0%, transparent 70%)" }} />
+        <div className="absolute top-[-10%] left-1/2 -translate-x-1/2 w-[900px] h-[600px] rounded-full pointer-events-none"
+          style={{ background: "radial-gradient(ellipse, rgba(13,148,136,0.10) 0%, transparent 70%)" }} />
 
-        <div className="relative mx-auto max-w-6xl px-6">
-          <div className="max-w-3xl">
-            <div className="fade-up fade-up-1 inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-accent/30 bg-accent-glow mb-6">
-              <span className="w-1.5 h-1.5 rounded-full bg-accent-bright pulse-soft" />
-              <span className="text-xs font-mono text-accent-bright">Now live — free for indie artists</span>
-            </div>
-
-            <h1 className="fade-up fade-up-2 font-display text-5xl md:text-6xl lg:text-7xl leading-[1.05] tracking-tight mb-6">
-              Fix your metadata<br />
-              <span className="text-accent-bright italic">before</span> your distributor<br />
-              rejects it.
-            </h1>
-
-            <p className="fade-up fade-up-3 text-lg text-text-muted leading-relaxed max-w-xl mb-8">
-              MetaCheck scans your release for ISRC errors, missing credits, bad formatting,
-              and 30+ issues that cost you royalties. AI suggests fixes. Export clean files.
-              Never get rejected again.
-            </p>
-
-            <div className="fade-up fade-up-4 flex flex-wrap items-center gap-4 mb-4">
-              <Link
-                href="/sign-up"
-                className="px-6 py-3 bg-accent text-white rounded-lg text-sm font-semibold hover:bg-accent-bright transition-colors glow-teal"
-              >
-                Start free →
-              </Link>
-              <a href="#demo" className="px-6 py-3 border border-border-bright rounded-lg text-sm font-medium text-text-muted hover:text-text hover:border-text-muted transition-colors">
-                Try Live Demo ↓
-              </a>
-            </div>
-
-            <p className="fade-up fade-up-5 text-xs text-text-dim font-mono">
-              Free for 3 releases/month · No credit card required
-            </p>
+        <div className="relative mx-auto max-w-3xl px-6 text-center">
+          <div className="fade-up fade-up-1 inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-border-bright bg-bg-card/60 mb-7">
+            <span className="w-1.5 h-1.5 rounded-full bg-accent-bright pulse-soft" />
+            <span className="text-xs text-text-muted tracking-wide">Metadata QC for independent artists &amp; labels</span>
           </div>
+
+          <h1 className="fade-up fade-up-2 font-display text-5xl md:text-6xl lg:text-7xl leading-[1.02] tracking-tight mb-6">
+            Release-ready metadata,<br />
+            <span className="text-accent-bright">before you hit submit.</span>
+          </h1>
+
+          <p className="fade-up fade-up-3 text-lg text-text-muted leading-relaxed max-w-xl mx-auto mb-9">
+            MetaCheck scans every track for the 40+ formatting, credit, and rights errors
+            that get releases rejected or quietly drain your royalties — then fixes them in one click.
+          </p>
+
+          <div className="fade-up fade-up-4 flex flex-wrap items-center justify-center gap-3 mb-6">
+            <Link
+              href="/sign-up"
+              className="press glow-teal inline-flex items-center gap-1.5 px-6 py-3 bg-accent text-white rounded-xl text-sm font-semibold hover:bg-accent-bright"
+            >
+              Start free <IconArrowRight size={16} />
+            </Link>
+            <a href="#demo" className="press inline-flex items-center gap-1.5 px-6 py-3 border border-border-bright rounded-xl text-sm font-medium text-text-muted hover:text-text hover:border-text-muted transition-colors">
+              Try the live demo <IconArrowDown size={16} />
+            </a>
+          </div>
+
+          <p className="fade-up fade-up-5 inline-flex items-center gap-2 text-xs text-text-dim">
+            <IconLock size={13} /> Runs in your browser · No credit card · DistroKid, TuneCore &amp; CD Baby
+          </p>
         </div>
       </section>
 
-      {/* ── STATS BAR ───────────────────────────────────── */}
-      <section className="border-y border-border bg-bg-elevated">
-        <div className="mx-auto max-w-6xl px-6 py-8 grid grid-cols-2 md:grid-cols-4 gap-8">
-          {[
-            { value: "120K+", label: "songs uploaded to DSPs daily" },
-            { value: "40%", label: "of ownership disputes avoidable with proper metadata" },
-            { value: "30+", label: "validation rules" },
-            { value: "<2s", label: "to scan a full release" },
-          ].map((s) => (
-            <div key={s.label} className="text-center">
-              <p className="text-2xl font-bold text-accent-bright font-mono">{s.value}</p>
-              <p className="text-xs text-text-dim mt-1 leading-relaxed">{s.label}</p>
-            </div>
+      {/* ── VALUE / OUTCOMES ────────────────────────────── */}
+      <section className="border-y border-border bg-bg-elevated/60">
+        <div className="mx-auto max-w-6xl px-6 py-16 grid md:grid-cols-3 gap-px bg-border rounded-2xl overflow-hidden my-0">
+          {OUTCOMES.map((o, i) => (
+            <Reveal key={o.stat} delay={i * 80} className="bg-bg-elevated/60 p-8">
+              <div className="w-9 h-9 rounded-lg bg-accent/10 text-accent-bright flex items-center justify-center mb-4">
+                <IconCheck size={18} />
+              </div>
+              <h3 className="font-display text-2xl tracking-tight mb-2">{o.stat}</h3>
+              <p className="text-sm text-text-muted leading-relaxed">{o.desc}</p>
+            </Reveal>
           ))}
         </div>
       </section>
 
       {/* ── LIVE DEMO ───────────────────────────────────── */}
-      <section id="demo" className="py-20">
-        <div className="mx-auto max-w-6xl px-6">
-          <div className="text-center mb-12">
-            <p className="text-xs font-mono text-accent-bright uppercase tracking-widest mb-3">Live Demo</p>
-            <h2 className="font-display text-3xl md:text-4xl tracking-tight mb-3">See it catch real errors</h2>
-            <p className="text-text-muted max-w-md mx-auto text-sm">
-              This is the actual validation engine. Click the sample tracks below or enter your own metadata.
+      <section id="demo" className="py-24">
+        <div className="mx-auto max-w-5xl px-6">
+          <Reveal className="text-center mb-10">
+            <p className="text-sm text-accent-bright font-medium mb-3">Live demo</p>
+            <h2 className="font-display text-4xl md:text-5xl tracking-tight mb-4">See it catch real errors</h2>
+            <p className="text-text-muted max-w-md mx-auto">
+              This is the actual engine. Search any released song and watch it audit the metadata in real time.
             </p>
-            <p className="text-xs text-text-dim mt-3 max-w-md mx-auto">
-              🔒 Validation runs entirely in your browser — your unreleased metadata never leaves your device.
-              Works with DistroKid, TuneCore &amp; CD Baby CSV exports.
+            <p className="inline-flex items-center gap-1.5 text-xs text-text-dim mt-4">
+              <IconLock size={13} /> Validation runs entirely in your browser — nothing leaves your device.
             </p>
-          </div>
-          <LiveDemo />
+          </Reveal>
+          <Reveal delay={80}>
+            <LiveDemo />
+          </Reveal>
         </div>
       </section>
 
       {/* ── FEATURES ────────────────────────────────────── */}
-      <section id="features" className="py-20 border-t border-border">
+      <section id="features" className="py-24 border-t border-border">
         <div className="mx-auto max-w-6xl px-6">
-          <div className="text-center mb-16">
-            <p className="text-xs font-mono text-accent-bright uppercase tracking-widest mb-3">What It Catches</p>
-            <h2 className="font-display text-3xl md:text-4xl tracking-tight">
-              30+ rules your distributor doesn&apos;t tell you about
+          <Reveal className="max-w-2xl mb-14">
+            <p className="text-sm text-accent-bright font-medium mb-3">What it catches</p>
+            <h2 className="font-display text-4xl md:text-5xl tracking-tight leading-[1.05]">
+              Forty-plus rules your distributor never tells you about.
             </h2>
-          </div>
+          </Reveal>
 
-          <div className="grid md:grid-cols-3 gap-6">
-            {[
-              {
-                icon: "⚡",
-                title: "ISRC Validation",
-                desc: "Catches invalid formats, missing codes, and duplicate ISRCs that silently kill your royalty tracking across every platform.",
-                tag: "critical",
-              },
-              {
-                icon: "✍️",
-                title: "Credit Completeness",
-                desc: "Flags missing songwriters, producers, and composers. No credits = no publishing royalties from PROs, MLC, or SoundExchange.",
-                tag: "critical",
-              },
-              {
-                icon: "🏷️",
-                title: "Title Formatting",
-                desc: 'Detects wrong "feat." syntax, ALL CAPS titles, version info outside parentheses, and trailing whitespace that triggers rejections.',
-                tag: "warning",
-              },
-              {
-                icon: "🎵",
-                title: "Genre Matching",
-                desc: "Validates against DSP-recognized genre lists. Wrong genres = wrong playlists = missed listeners.",
-                tag: "suggestion",
-              },
-              {
-                icon: "📅",
-                title: "Release Date Logic",
-                desc: "Warns when your date is too close for Spotify editorial pitch consideration (7-day minimum lead time).",
-                tag: "warning",
-              },
-              {
-                icon: "🤖",
-                title: "AI Fix Suggestions",
-                desc: "Auto-corrects title casing, generates copyright lines, suggests genre tags, and fixes featured artist formatting. One-click apply.",
-                tag: "pro",
-              },
-            ].map((f) => (
-              <div
-                key={f.title}
-                className="gradient-border group rounded-2xl bg-bg-card p-6 hover:bg-surface transition-colors"
-              >
-                <div className="flex items-start justify-between mb-4">
-                  <span className="text-2xl">{f.icon}</span>
-                  <span className={`text-[10px] font-mono font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full ${
-                    f.tag === "critical" ? "bg-red/10 text-red" :
-                    f.tag === "warning" ? "bg-amber/10 text-amber" :
-                    f.tag === "pro" ? "bg-accent/10 text-accent-bright" :
-                    "bg-blue/10 text-blue"
-                  }`}>
-                    {f.tag}
-                  </span>
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {FEATURES.map((f, i) => (
+              <Reveal key={f.title} delay={(i % 3) * 70}>
+                <div className="lift group h-full rounded-2xl border border-border bg-bg-card p-6 hover:border-border-bright hover:bg-surface">
+                  <div className="w-11 h-11 rounded-xl bg-accent/10 text-accent-bright flex items-center justify-center mb-5 transition-colors group-hover:bg-accent/15">
+                    <f.Icon size={22} />
+                  </div>
+                  <div className="flex items-center gap-2 mb-2">
+                    <h3 className="font-semibold text-text">{f.title}</h3>
+                  </div>
+                  <p className="text-xs text-text-dim uppercase tracking-wider mb-3">{f.cat}</p>
+                  <p className="text-sm text-text-muted leading-relaxed">{f.desc}</p>
                 </div>
-                <h3 className="font-semibold text-text mb-2">{f.title}</h3>
-                <p className="text-sm text-text-muted leading-relaxed">{f.desc}</p>
-              </div>
+              </Reveal>
             ))}
           </div>
         </div>
       </section>
 
       {/* ── HOW IT WORKS ────────────────────────────────── */}
-      <section className="py-20 border-t border-border bg-bg-elevated">
-        <div className="mx-auto max-w-6xl px-6">
-          <div className="text-center mb-16">
-            <p className="text-xs font-mono text-accent-bright uppercase tracking-widest mb-3">Workflow</p>
-            <h2 className="font-display text-3xl md:text-4xl tracking-tight">Three steps. Two seconds. Zero rejections.</h2>
-          </div>
+      <section className="py-24 border-t border-border bg-bg-elevated/60">
+        <div className="mx-auto max-w-5xl px-6">
+          <Reveal className="text-center mb-16">
+            <p className="text-sm text-accent-bright font-medium mb-3">How it works</p>
+            <h2 className="font-display text-4xl md:text-5xl tracking-tight">Three steps. Two seconds. Zero rejections.</h2>
+          </Reveal>
 
-          <div className="grid md:grid-cols-3 gap-12">
+          <div className="grid md:grid-cols-3 gap-10">
             {[
-              { step: "01", title: "Paste or upload", desc: "Enter track details manually, paste from a spreadsheet, or upload your distributor CSV." },
-              { step: "02", title: "Instant scan", desc: "30+ rules run in under 2 seconds. Issues are graded by severity with specific fix instructions." },
-              { step: "03", title: "Fix and export", desc: "Apply AI-suggested fixes with one click. Export a clean, distributor-ready file. Ship it." },
-            ].map((s) => (
-              <div key={s.step} className="relative">
-                <span className="font-mono text-6xl font-bold text-border-bright/50 absolute -top-4 -left-2">{s.step}</span>
-                <div className="relative pt-10">
-                  <h3 className="font-semibold text-text text-lg mb-2">{s.title}</h3>
-                  <p className="text-sm text-text-muted leading-relaxed">{s.desc}</p>
+              { step: "1", title: "Paste or upload", desc: "Enter tracks by hand, paste from a sheet, or drop your distributor CSV." },
+              { step: "2", title: "Instant scan", desc: "40+ rules run in under two seconds, graded by severity with exact fixes." },
+              { step: "3", title: "Fix & export", desc: "Apply AI fixes with one click and export a clean, distributor-ready file." },
+            ].map((s, i) => (
+              <Reveal key={s.step} delay={i * 90} className="text-center md:text-left">
+                <div className="inline-flex items-center justify-center w-10 h-10 rounded-full border border-accent/30 bg-accent/10 text-accent-bright font-display text-xl mb-5">
+                  {s.step}
                 </div>
-              </div>
+                <h3 className="font-semibold text-text text-lg mb-2">{s.title}</h3>
+                <p className="text-sm text-text-muted leading-relaxed">{s.desc}</p>
+              </Reveal>
             ))}
           </div>
         </div>
       </section>
 
       {/* ── PRICING ─────────────────────────────────────── */}
-      <section id="pricing" className="py-20 border-t border-border">
+      <section id="pricing" className="py-24 border-t border-border">
         <div className="mx-auto max-w-5xl px-6">
-          <div className="text-center mb-16">
-            <p className="text-xs font-mono text-accent-bright uppercase tracking-widest mb-3">Pricing</p>
-            <h2 className="font-display text-3xl md:text-4xl tracking-tight mb-3">Start free. Upgrade when you need more.</h2>
-            <p className="text-text-muted text-sm">A single missed ISRC costs more than a year of Pro.</p>
-          </div>
+          <Reveal className="text-center mb-14">
+            <p className="text-sm text-accent-bright font-medium mb-3">Pricing</p>
+            <h2 className="font-display text-4xl md:text-5xl tracking-tight mb-3">Start free. Upgrade when you scale.</h2>
+            <p className="text-text-muted">A single missed ISRC costs more than a year of Pro.</p>
+          </Reveal>
 
-          <div className="grid md:grid-cols-3 gap-6">
+          <div className="grid md:grid-cols-3 gap-5 items-start">
             {[
               {
-                name: "Free",
-                price: "$0",
-                interval: "",
-                features: ["3 releases per month", "All validation rules", "Artwork checks", "CSV export"],
-                cta: "Get started free",
-                href: "/sign-up",
-                highlight: false,
+                name: "Free", price: "$0", interval: "",
+                features: ["3 releases per month", "All 40+ validation rules", "Artwork checks", "Sync-Ready score", "CSV export"],
+                cta: "Get started free", href: "/sign-up", highlight: false,
               },
               {
-                name: "Pro",
-                price: "$9",
-                interval: "/mo · or $49/yr",
-                features: ["Unlimited releases", "AI fix suggestions", "Release history", "PDF reports", "Distributor profiles", "Priority support"],
-                cta: "Start with Pro",
-                href: "/sign-up",
-                highlight: true,
+                name: "Pro", price: "$9", interval: "/mo · or $49/yr",
+                features: ["Unlimited releases", "One-click AI fixes", "Release history", "PDF reports", "Distributor profiles", "Priority support"],
+                cta: "Start with Pro", href: "/sign-up", highlight: true,
               },
               {
-                name: "Label",
-                price: "$29",
-                interval: "/mo · or $290/yr",
+                name: "Label", price: "$29", interval: "/mo · or $290/yr",
                 features: ["Everything in Pro", "Batch / catalog mode", "5 team members", "API access", "Custom rules"],
-                cta: "Start with Label",
-                href: "/sign-up",
-                highlight: false,
+                cta: "Start with Label", href: "/sign-up", highlight: false,
               },
-            ].map((t) => (
-              <div
-                key={t.name}
-                className={`relative rounded-2xl p-7 flex flex-col ${
-                  t.highlight
-                    ? "gradient-border bg-bg-card glow-teal"
-                    : "border border-border bg-bg-card"
-                }`}
-              >
-                {t.highlight && (
-                  <span className="absolute -top-3 left-6 bg-accent text-white text-[10px] font-mono font-bold uppercase tracking-wider px-3 py-1 rounded-full">
-                    Most Popular
-                  </span>
-                )}
-
-                <h3 className="font-semibold text-text text-lg mb-1">{t.name}</h3>
-                <div className="flex items-baseline gap-0.5 mb-5">
-                  <span className="text-4xl font-bold text-text font-mono">{t.price}</span>
-                  {t.interval && <span className="text-sm text-text-dim">{t.interval}</span>}
+            ].map((t, i) => (
+              <Reveal key={t.name} delay={i * 80}>
+                <div className={`relative rounded-2xl p-7 flex flex-col h-full ${
+                  t.highlight ? "gradient-border bg-bg-card glow-teal md:-mt-3 md:pb-10" : "border border-border bg-bg-card"
+                }`}>
+                  {t.highlight && (
+                    <span className="absolute -top-3 left-6 bg-accent text-white text-[10px] font-semibold uppercase tracking-wider px-3 py-1 rounded-full">
+                      Most popular
+                    </span>
+                  )}
+                  <h3 className="font-semibold text-text text-lg mb-1">{t.name}</h3>
+                  <div className="flex items-baseline gap-1 mb-6">
+                    <span className="text-4xl font-bold text-text">{t.price}</span>
+                    {t.interval && <span className="text-sm text-text-dim">{t.interval}</span>}
+                  </div>
+                  <ul className="space-y-3 mb-7 flex-1">
+                    {t.features.map((f) => (
+                      <li key={f} className="flex items-start gap-2.5 text-sm text-text-muted">
+                        <IconCheck size={16} className="text-accent-bright mt-0.5 shrink-0" />
+                        {f}
+                      </li>
+                    ))}
+                  </ul>
+                  <Link
+                    href={t.href}
+                    className={`press block text-center py-3 rounded-xl text-sm font-semibold transition-colors ${
+                      t.highlight ? "bg-accent text-white hover:bg-accent-bright"
+                        : "border border-border-bright text-text-muted hover:text-text hover:border-text-dim"
+                    }`}
+                  >
+                    {t.cta}
+                  </Link>
                 </div>
-
-                <ul className="space-y-2.5 mb-7 flex-1">
-                  {t.features.map((f) => (
-                    <li key={f} className="flex items-start gap-2 text-sm text-text-muted">
-                      <span className="text-accent-bright mt-0.5 text-xs">✓</span>
-                      {f}
-                    </li>
-                  ))}
-                </ul>
-
-                <Link
-                  href={t.href}
-                  className={`block text-center py-3 rounded-lg text-sm font-semibold transition-colors ${
-                    t.highlight
-                      ? "bg-accent text-white hover:bg-accent-bright"
-                      : "border border-border-bright text-text-muted hover:text-text hover:border-text-dim"
-                  }`}
-                >
-                  {t.cta}
-                </Link>
-              </div>
+              </Reveal>
             ))}
           </div>
         </div>
       </section>
 
       {/* ── FINAL CTA ───────────────────────────────────── */}
-      <section id="get-started" className="py-20 border-t border-border bg-bg-elevated">
-        <div className="mx-auto max-w-xl px-6 text-center">
-          <h2 className="font-display text-3xl md:text-4xl tracking-tight mb-3">
-            Stop losing royalties to<br />
-            <span className="text-accent-bright italic">sloppy metadata</span>
+      <section id="get-started" className="py-28 border-t border-border bg-bg-elevated/60">
+        <Reveal className="mx-auto max-w-xl px-6 text-center">
+          <h2 className="font-display text-4xl md:text-5xl tracking-tight mb-4 leading-[1.05]">
+            Stop losing royalties to <span className="text-accent-bright">sloppy metadata.</span>
           </h2>
-          <p className="text-text-muted text-sm mb-8 max-w-md mx-auto">
-            Check your next release in seconds — catch the errors that cost you a release date or a
+          <p className="text-text-muted mb-9 max-w-md mx-auto">
+            Check your next release in seconds. Catch the errors that cost you a release date or a
             royalty before you ever hit submit.
           </p>
-
           <div className="flex flex-wrap items-center justify-center gap-3">
             <Link
               href="/sign-up"
-              className="px-6 py-3 bg-accent text-white rounded-lg text-sm font-semibold hover:bg-accent-bright transition-colors glow-teal"
+              className="press glow-teal inline-flex items-center gap-1.5 px-6 py-3 bg-accent text-white rounded-xl text-sm font-semibold hover:bg-accent-bright"
             >
-              Start free →
+              Start free <IconArrowRight size={16} />
             </Link>
-            <a
-              href="#demo"
-              className="px-6 py-3 border border-border-bright rounded-lg text-sm font-medium text-text-muted hover:text-text hover:border-text-muted transition-colors"
-            >
-              Try the live demo ↓
+            <a href="#demo" className="press inline-flex items-center gap-1.5 px-6 py-3 border border-border-bright rounded-xl text-sm font-medium text-text-muted hover:text-text hover:border-text-muted transition-colors">
+              Try the live demo <IconArrowDown size={16} />
             </a>
           </div>
-
-          <p className="text-[11px] text-text-dim mt-4 font-mono">Free for 3 releases/month · No credit card required</p>
-        </div>
+          <p className="text-xs text-text-dim mt-5">Free for 3 releases/month · No credit card required</p>
+        </Reveal>
       </section>
 
       {/* ── FOOTER ──────────────────────────────────────── */}
-      <footer className="border-t border-border py-8">
-        <div className="mx-auto max-w-6xl px-6 flex items-center justify-between text-xs text-text-dim font-mono">
+      <footer className="border-t border-border py-10">
+        <div className="mx-auto max-w-6xl px-6 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-text-dim">
           <span>&copy; {new Date().getFullYear()} Overlook Strategy</span>
           <div className="flex gap-6">
             <Link href="/terms" className="hover:text-text-muted transition-colors">Terms</Link>

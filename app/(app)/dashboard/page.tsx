@@ -1,6 +1,7 @@
 import { auth, currentUser } from "@clerk/nextjs/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import Link from "next/link";
+import { IconCheckShield, IconArrowRight } from "@/app/_components/icons";
 
 export default async function DashboardPage() {
   const { userId } = await auth();
@@ -77,9 +78,9 @@ export default async function DashboardPage() {
           </div>
           <Link
             href="/validate"
-            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-accent text-white font-semibold text-sm hover:bg-accent-bright transition-colors glow-teal"
+            className="press inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-accent text-white font-semibold text-sm hover:bg-accent-bright transition-colors glow-teal"
           >
-            Check your first release →
+            Check your first release <IconArrowRight size={16} />
           </Link>
         </div>
       )}
@@ -148,10 +149,10 @@ export default async function DashboardPage() {
         <div className="mb-10">
           <Link
             href="/validate"
-            className="inline-flex items-center gap-3 px-6 py-4 rounded-xl bg-accent text-white font-semibold text-sm hover:bg-accent-bright transition-colors glow-teal"
+            className="press inline-flex items-center gap-2.5 px-6 py-4 rounded-xl bg-accent text-white font-semibold text-sm hover:bg-accent-bright transition-colors glow-teal"
           >
-            <span className="text-xl">⟨⟩</span>
-            Validate New Release
+            <IconCheckShield size={18} />
+            Validate new release
           </Link>
         </div>
       )}

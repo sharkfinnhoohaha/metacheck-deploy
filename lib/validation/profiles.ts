@@ -21,6 +21,7 @@ export const PROFILES: Record<string, DistributorProfile> = {
     requireProducerCredit: false,
     requirePerformerCredit: true,
     enforceTitleCase: true,
+    aiPolicy: "disclose",
   },
   distrokid: {
     id: "distrokid",
@@ -30,6 +31,8 @@ export const PROFILES: Record<string, DistributorProfile> = {
     requireProducerCredit: false,
     requirePerformerCredit: true,
     enforceTitleCase: true,
+    // DistroKid permits AI music but requires a 4-category disclosure.
+    aiPolicy: "disclose",
   },
   cdbaby: {
     id: "cdbaby",
@@ -39,6 +42,8 @@ export const PROFILES: Record<string, DistributorProfile> = {
     requireProducerCredit: false,
     requirePerformerCredit: true,
     enforceTitleCase: true,
+    // CD Baby prohibits fully AI-generated music.
+    aiPolicy: "ban",
   },
   tunecore: {
     id: "tunecore",
@@ -48,6 +53,8 @@ export const PROFILES: Record<string, DistributorProfile> = {
     requireProducerCredit: false,
     requirePerformerCredit: true,
     enforceTitleCase: true,
+    // TuneCore / Believe block tracks made with unlicensed AI tools (Suno, Udio).
+    aiPolicy: "restricted",
   },
   apple: {
     id: "apple",
@@ -57,6 +64,7 @@ export const PROFILES: Record<string, DistributorProfile> = {
     requireProducerCredit: true,
     requirePerformerCredit: true,
     enforceTitleCase: true,
+    aiPolicy: "disclose",
   },
 };
 

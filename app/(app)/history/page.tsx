@@ -1,6 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import Link from "next/link";
+import { IconClock, IconArrowRight } from "@/app/_components/icons";
 
 const GRADE_CLASSES: Record<string, { text: string; bg: string }> = {
   A: { text: "text-green-500", bg: "bg-green-500/10" },
@@ -24,17 +25,19 @@ export default async function HistoryPage() {
     return (
       <div className="max-w-4xl mx-auto px-6 py-10">
         <h1 className="font-display text-3xl text-text mb-2">History</h1>
-        <div className="mt-12 rounded-xl border border-dashed border-border p-12 text-center">
-          <p className="text-4xl mb-4">◷</p>
+        <div className="mt-12 rounded-2xl border border-dashed border-border p-12 text-center">
+          <div className="w-14 h-14 rounded-2xl bg-accent/10 text-accent-bright flex items-center justify-center mx-auto mb-5">
+            <IconClock size={26} />
+          </div>
           <h2 className="font-display text-2xl text-text mb-2">History is a Pro feature</h2>
           <p className="text-text-muted text-sm mb-6 max-w-md mx-auto">
             Save unlimited validations, review past releases, and re-run checks with the latest rules.
           </p>
           <Link
             href="/settings"
-            className="inline-block px-6 py-3 bg-accent text-white rounded-lg text-sm font-semibold hover:bg-accent-bright transition-colors glow-teal"
+            className="press inline-flex items-center gap-1.5 px-6 py-3 bg-accent text-white rounded-xl text-sm font-semibold hover:bg-accent-bright transition-colors glow-teal"
           >
-            Upgrade to Pro →
+            Upgrade to Pro <IconArrowRight size={16} />
           </Link>
         </div>
       </div>

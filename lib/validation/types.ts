@@ -20,6 +20,28 @@ export type TrackMeta = {
   iswc?: string;
   /** Writer splits, e.g. "Jane Doe 50%, John Roe 50%" — must total 100%. */
   splits?: string;
+
+  // ── Sync / licensing readiness (music supervision) ──────────────────
+  /** Tempo in beats per minute — a hard search filter for music supervisors. */
+  bpm?: string;
+  /** Musical key, e.g. "A minor", "F# maj". */
+  musicalKey?: string;
+  /** Comma-separated mood / vibe tags supervisors search by, e.g. "uplifting, cinematic, hopeful". */
+  moodTags?: string;
+  /** An instrumental version exists (yes/no) — non-negotiable for dialogue scenes. */
+  instrumentalAvailable?: string;
+  /** A clean (radio/no-profanity) version exists (yes/no). */
+  cleanVersionAvailable?: string;
+  /** Individual stems are available for re-editing (yes/no). */
+  stemsAvailable?: string;
+  /** One party controls both master + publishing, so a supervisor can clear in one call (yes/no). */
+  oneStopClearance?: string;
+  /** Reachable licensing contact (email) for sync requests. */
+  licensingContact?: string;
+
+  // ── AI disclosure (2025–26 distributor requirement) ─────────────────
+  /** How AI was used: "none" | "ai-assisted" | "ai-vocals" | "fully-ai". */
+  aiDisclosure?: string;
 };
 
 export type ValidationResult = {
@@ -61,6 +83,14 @@ export type DistributorProfile = {
   requirePerformerCredit: boolean;
   /** Enforce DSP title-case style (first/last word capitalised, no all-caps/all-lowercase). */
   enforceTitleCase: boolean;
+  /**
+   * How this distributor treats AI-generated music (2025–26 policy spectrum):
+   *  - "open":       no stated policy (e.g. Amazon) — disclosure is informational.
+   *  - "disclose":   permitted with a required disclosure (DistroKid, Apple-fed).
+   *  - "restricted": tracks from unlicensed AI tools (Suno/Udio) are blocked (TuneCore/Believe).
+   *  - "ban":        fully-AI tracks are prohibited and removed (CD Baby).
+   */
+  aiPolicy: "open" | "disclose" | "restricted" | "ban";
 };
 
 /** Result of validating a release's cover artwork against DSP submission specs. */

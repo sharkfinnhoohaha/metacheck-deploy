@@ -250,6 +250,27 @@ export function validateTrack(
     }
   }
 
+  // ── AI disclosure (per-distributor policy) ─────────────────────────
+  // Distributors diverged hard on AI music in 2025–26: CD Baby bans fully-AI
+  // tracks, TuneCore/Believe block unlicensed AI tools, DistroKid permits with a
+  // disclosure. The same track can be shippable on one and bannable on another.
+  const ai = (track.aiDisclosure || "").trim().toLowerCase();
+  const usesAi = ai === "ai-assisted" || ai === "ai-vocals" || ai === "fully-ai";
+  if (!ai) {
+    a("ai_disclosure_missing", "AI Disclosure", "suggestion", "AI use isn't declared — Spotify and Apple now surface AI credits and most distributors ask at upload. Set this to none / ai-assisted / ai-vocals / fully-ai.");
+  } else if (usesAi) {
+    const heavy = ai === "fully-ai" || ai === "ai-vocals";
+    if (profile.aiPolicy === "ban") {
+      a("ai_policy_ban", "AI Disclosure", heavy ? "critical" : "warning", `${profile.name} prohibits AI-generated music — a "${ai}" track will be taken down. Move it to a distributor that allows disclosed AI (e.g. DistroKid).`);
+    } else if (profile.aiPolicy === "restricted") {
+      a("ai_policy_restricted", "AI Disclosure", heavy ? "critical" : "warning", `${profile.name} blocks tracks made with unlicensed AI tools (e.g. Suno, Udio). Confirm your AI tool grants commercial rights or this "${ai}" release will be rejected.`);
+    } else if (profile.aiPolicy === "disclose") {
+      a("ai_policy_disclose", "AI Disclosure", "warning", `Declare "${ai}" in ${profile.name}'s AI-disclosure form at upload — undisclosed AI is a takedown risk now that Spotify/Apple show AI credits.`);
+    } else {
+      a("ai_policy_open", "AI Disclosure", "suggestion", `${profile.name} has no stated AI policy, but disclose "${ai}" anyway — DSP-level AI labelling still applies downstream.`);
+    }
+  }
+
   return r;
 }
 

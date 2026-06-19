@@ -3,51 +3,50 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { UserButton } from "@clerk/nextjs";
+import { IconGrid, IconCheckShield, IconClock, IconSliders } from "@/app/_components/icons";
 
 const NAV = [
-  { href: "/dashboard", label: "Dashboard", icon: "▦" },
-  { href: "/validate", label: "Validate Release", icon: "⟨⟩" },
-  { href: "/history", label: "History", icon: "◷" },
-  { href: "/settings", label: "Settings", icon: "⊙" },
+  { href: "/dashboard", label: "Dashboard", Icon: IconGrid },
+  { href: "/validate", label: "Validate", Icon: IconCheckShield },
+  { href: "/history", label: "History", Icon: IconClock },
+  { href: "/settings", label: "Settings", Icon: IconSliders },
 ];
 
 export function Sidebar() {
   const pathname = usePathname();
   return (
-    <aside
-      className="fixed left-0 top-0 h-screen w-60 flex flex-col border-r border-border bg-bg-elevated"
-    >
+    <aside className="fixed left-0 top-0 h-screen w-60 flex flex-col border-r border-border bg-bg-elevated/70 backdrop-blur-xl z-30">
       {/* Logo */}
-      <div className="flex items-center gap-2.5 px-5 py-5 border-b border-border">
-        <div className="w-7 h-7 rounded-md bg-accent flex items-center justify-center shrink-0">
-          <span className="text-white text-xs font-mono font-bold">M</span>
+      <Link href="/dashboard" className="flex items-center gap-2.5 px-5 py-5 border-b border-border">
+        <div className="w-7 h-7 rounded-lg bg-accent flex items-center justify-center shrink-0">
+          <span className="text-white text-sm font-mono font-bold">M</span>
         </div>
-        <span className="font-display text-lg text-text tracking-tight">MetaCheck</span>
-      </div>
+        <span className="font-display text-xl text-text tracking-tight">MetaCheck</span>
+      </Link>
 
       {/* Nav links */}
       <nav className="flex-1 px-3 py-4 space-y-1">
-        {NAV.map((item) => {
-          const active = pathname === item.href || pathname.startsWith(item.href + "/");
+        {NAV.map(({ href, label, Icon }) => {
+          const active = pathname === href || pathname.startsWith(href + "/");
           return (
             <Link
-              key={item.href}
-              href={item.href}
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-all ${
+              key={href}
+              href={href}
+              className={`group flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-all ${
                 active
-                  ? "bg-accent/10 text-accent-bright font-medium border border-accent/20"
+                  ? "bg-accent/10 text-accent-bright font-medium"
                   : "text-text-muted hover:text-text hover:bg-surface"
               }`}
             >
-              <span className="text-base leading-none">{item.icon}</span>
-              {item.label}
+              <Icon size={18} className={active ? "text-accent-bright" : "text-text-dim group-hover:text-text-muted transition-colors"} />
+              {label}
             </Link>
           );
         })}
       </nav>
 
       {/* User button */}
-      <div className="px-5 py-4 border-t border-border flex items-center gap-3">
+      <div className="px-4 py-4 border-t border-border flex items-center gap-3">
         <UserButton />
         <span className="text-xs text-text-dim">Account</span>
       </div>
