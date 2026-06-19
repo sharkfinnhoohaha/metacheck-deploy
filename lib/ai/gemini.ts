@@ -1,4 +1,5 @@
 import { GoogleGenAI } from "@google/genai";
+import { IdentityPoolClient } from "google-auth-library";
 
 /**
  * Model preference order. IDs are pinned to GA, *date-suffix-free* names so the
@@ -21,29 +22,66 @@ let _client: GoogleGenAI | null | undefined;
  * marketing demo working without any key).
  *
  * Auth precedence:
- *  1. **Vertex AI** — used when GOOGLE_VERTEX_PROJECT (or GOOGLE_CLOUD_PROJECT)
- *     and GOOGLE_SERVICE_ACCOUNT_JSON are set. This routes spend through Google
- *     Cloud so it can draw on the $300 credit, and carries the paid no-training
- *     data guarantee for unreleased artist metadata.
- *  2. **Gemini Developer API** — `GEMINI_API_KEY`. NOTE: the *free* Developer
+ *  1. **Vertex AI via Workload Identity Federation (keyless)** — used when
+ *     GCP_WORKLOAD_IDENTITY_AUDIENCE + GCP_SERVICE_ACCOUNT_EMAIL are set. On
+ *     Vercel, the per-request `VERCEL_OIDC_TOKEN` is exchanged (STS) to
+ *     impersonate the service account — no long-lived key, so it satisfies the
+ *     org policy that blocks service-account keys, and draws on the GCP credit.
+ *  2. **Vertex AI via service-account key** — GOOGLE_VERTEX_PROJECT +
+ *     GOOGLE_SERVICE_ACCOUNT_JSON (used where SA keys are permitted).
+ *  3. **Gemini Developer API** — `GEMINI_API_KEY`. NOTE: the *free* Developer
  *     tier trains on your content; enable billing before sending real data.
  */
 function getClient(): GoogleGenAI | null {
   if (_client !== undefined) return _client;
   try {
     const project = process.env.GOOGLE_VERTEX_PROJECT || process.env.GOOGLE_CLOUD_PROJECT;
+    const location = process.env.GOOGLE_VERTEX_LOCATION || "us-central1";
+
+    // 1. Keyless Vertex (Workload Identity Federation) — preferred on Vercel.
+    const wifAudience = process.env.GCP_WORKLOAD_IDENTITY_AUDIENCE;
+    const wifSaEmail = process.env.GCP_SERVICE_ACCOUNT_EMAIL;
+    if (project && wifAudience && wifSaEmail) {
+      const authClient = new IdentityPoolClient({
+        audience: wifAudience,
+        subject_token_type: "urn:ietf:params:oauth:token-type:jwt",
+        token_url: "https://sts.googleapis.com/v1/token",
+        service_account_impersonation_url: `https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/${wifSaEmail}:generateAccessToken`,
+        subject_token_supplier: {
+          // Vercel injects a fresh OIDC token per invocation.
+          getSubjectToken: async () => {
+            const token = process.env.VERCEL_OIDC_TOKEN;
+            if (!token) {
+              throw new Error("VERCEL_OIDC_TOKEN missing — enable OIDC federation on the Vercel project");
+            }
+            return token;
+          },
+        },
+      });
+      _client = new GoogleGenAI({
+        vertexai: true,
+        project,
+        location,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        googleAuthOptions: { authClient: authClient as any },
+      });
+      return _client;
+    }
+
+    // 2. Vertex via service-account key (where key creation is allowed).
     const saJson = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
     if (project && saJson) {
       const credentials = JSON.parse(saJson);
       _client = new GoogleGenAI({
         vertexai: true,
         project,
-        location: process.env.GOOGLE_VERTEX_LOCATION || "us-central1",
+        location,
         googleAuthOptions: { credentials },
       });
       return _client;
     }
 
+    // 3. Gemini Developer API key.
     const apiKey = process.env.GEMINI_API_KEY;
     if (apiKey) {
       _client = new GoogleGenAI({ apiKey });

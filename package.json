@@ -17,6 +17,7 @@
     "@tailwindcss/postcss": "^4.2.2",
     "@upstash/ratelimit": "^2.0.8",
     "@upstash/redis": "^1.38.0",
+    "google-auth-library": "^10.7.0",
     "jspdf": "^4.2.1",
     "next": "^15.2.4",
     "papaparse": "^5.5.3",
