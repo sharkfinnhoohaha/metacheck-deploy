@@ -167,6 +167,13 @@
 .scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
 .scrollbar-thin::-webkit-scrollbar-thumb { background-color: var(--color-border-bright); border-radius: 2px; }
 
+/* ── No-JS safety net ────────────────────────────────── */
+/* Scroll-reveal relies on JS (IntersectionObserver). If scripting is off, never
+   leave the content stranded at opacity:0 — show it immediately. */
+@media (scripting: none) {
+  .reveal { opacity: 1; transform: none; }
+}
+
 /* ── Respect reduced-motion ──────────────────────────── */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {

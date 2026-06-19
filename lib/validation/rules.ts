@@ -42,10 +42,13 @@ function needsTitleCaseFix(title: string): boolean {
  * descriptor so legitimate words like "Live Your Life" don't trip the rule.
  */
 function detectUnbracketedVersion(title: string): { keyword: string; fixed: string } | null {
-  // An optional leading word (e.g. "Radio", "Extended", a remixer name) plus the
-  // version noun, trailing the title without brackets. Kept to a trailing match so
-  // legit titles like "Live Your Life" don't trip.
-  const m = title.match(/[\s-]+((?:\w+\s+)?(?:remix|live|acoustic|instrumental|unplugged|remaster(?:ed)?|demo|edit|version|mix|rework|reprise|vip|mono|stereo|karaoke|sped[\s-]?up|slowed))\s*$/i);
+  // "Strong" descriptors are rarely ordinary trailing title words, so they match
+  // standalone. "Weak" descriptors (mix/edit/version/live/demo…) are common words,
+  // so they only count when preceded by a known qualifier (Radio Edit, Club Mix) —
+  // this avoids mangling legit titles like "Going Live", "New Version", "The Mix".
+  const strong = title.match(/[\s-]+(remix|acoustic|instrumental|unplugged|remaster(?:ed)?|karaoke|sped[\s-]?up|slowed)\s*$/i);
+  const weak = title.match(/[\s-]+((?:radio|extended|club|original|album|single|studio|piano|dance|deluxe|clean|dirty|main|dub|tv)\s+(?:edit|version|mix|mono|stereo|vip|rework|reprise|live|demo|dub))\s*$/i);
+  const m = strong || weak;
   if (!m || m.index === undefined) return null;
   const keyword = m[1].trim();
   const base = title.slice(0, m.index).replace(/[-\s]+$/, "").trim();
@@ -68,9 +71,11 @@ const STORE_NAMES = [
 ];
 // URLs, @handles, emails in a title → rejection.
 const URL_HANDLE_RE = /(https?:\/\/|www\.|\.com\b|\.net\b|@[a-z0-9_]{2,}|[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,})/i;
-// Decorative / non-standard unicode beyond emoji: math alphanumerics, fullwidth
-// forms, letterlike symbols, combining marks, enclosed alphanumerics, box-drawing.
-const DECORATIVE_UNICODE_RE = /[\u{1D400}-\u{1D7FF}\u{FF01}-\u{FFEE}\u{2100}-\u{214F}\u{0300}-\u{036F}\u{2460}-\u{24FF}\u{2500}-\u{257F}]/u;
+// Decorative / non-standard unicode beyond emoji: math alphanumerics (𝓯𝓪𝓷𝓬𝔂),
+// fullwidth ASCII variants, enclosed alphanumerics (①②), box-drawing. Deliberately
+// EXCLUDES combining diacritics (legit accented Latin, esp. NFD-decomposed) and
+// letterlike symbols (℗ ™ № are standard in music metadata).
+const DECORATIVE_UNICODE_RE = /[\u{1D400}-\u{1D7FF}\u{FF01}-\u{FF5E}\u{2460}-\u{24FF}\u{2500}-\u{257F}]/u;
 // SEO / playlist-bait filler terms; flagged only in combination + a long title.
 const SEO_FILLER = new Set([
   "lofi", "lo-fi", "chill", "study", "relax", "relaxing", "sleep", "ambient",
@@ -104,7 +109,9 @@ function upcCheckDigitValid(digits: string): boolean {
 /** Parse "mm:ss", "h:mm:ss" or a raw seconds string into seconds, or null. */
 function parseDurationSeconds(v: string): number | null {
   const s = v.trim();
-  if (/^\d+(\.\d+)?$/.test(s)) return parseFloat(s);
+  // Integer-only for the bare-number branch — a bare decimal like "3.45" is
+  // ambiguous (3.45s? 3m45s?), so let it fall through and raise no warning.
+  if (/^\d+$/.test(s)) return parseInt(s, 10);
   const parts = s.split(":").map((p) => p.trim());
   if (parts.length < 2 || parts.length > 3 || parts.some((p) => !/^\d+$/.test(p))) return null;
   return parts.reduce((acc, p) => acc * 60 + parseInt(p, 10), 0);
@@ -117,9 +124,13 @@ function normalizeArtistKey(name: string): string {
     .toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 }
 
-/** Detect any guest-credit syntax anywhere in the title (not just trailing "ft."). */
+/**
+ * Detect a guest-credit syntax in the title (not just trailing "ft."). Limited to
+ * feat./ft./featuring — bare "with" is far too common in normal titles ("Dancing
+ * with Myself", "Come Away with Me") to treat as a featured credit.
+ */
 function detectGuestInTitle(title: string): string | null {
-  const m = title.match(/[([]?\s*(?:feat\.?|ft\.?|featuring|with|w\/)\s+([^)\]]+)/i);
+  const m = title.match(/[([]?\s*(?:feat\.?|ft\.?|featuring)\s+([^)\]]+)/i);
   return m ? m[1].trim().replace(/[)\]]+$/, "").trim() : null;
 }
 
@@ -200,7 +211,7 @@ export function validateTrack(
     const guest = detectGuestInTitle(track.title);
     if (guest && !/\(feat\. [^)]+\)/.test(track.title)) {
       const stripped = track.title
-        .replace(/\s*[([]?\s*(?:feat\.?|ft\.?|featuring|with|w\/)\s+[^)\]]+[)\]]?\s*$/i, "")
+        .replace(/\s*[([]?\s*(?:feat\.?|ft\.?|featuring)\s+[^)\]]+[)\]]?\s*$/i, "")
         .trim();
       if (stripped && stripped !== track.title) {
         a("title_feat_in_title", "Title", "warning", `Featured artist in the title — DSPs want the lowercase "(feat. Name)" form, and the guest also belongs in the Featured Artists field. Bare / "ft." / "with" / bracketed forms get rejected or linked to the wrong profile.`, `${stripped} (feat. ${guest})`, true);
@@ -235,8 +246,8 @@ export function validateTrack(
     }
     if (EMOJI_RE.test(track.title)) {
       a("title_special_chars", "Title", "warning", "Emoji in the title may be stripped or rejected by some DSPs.");
-    } else if (DECORATIVE_UNICODE_RE.test(track.title)) {
-      a("title_unicode_decorative", "Title", "warning", "Decorative/stylised unicode (fancy fonts, fullwidth or letterlike symbols) gets normalised or rejected — use plain text.");
+    } else if (DECORATIVE_UNICODE_RE.test(track.title.normalize("NFC"))) {
+      a("title_unicode_decorative", "Title", "warning", "Decorative/stylised unicode (fancy fonts, fullwidth or enclosed characters) gets normalised or rejected — use plain text.");
     }
     // Bracket balance (parentheses + square brackets).
     const open = (track.title.match(/\(/g) || []).length;

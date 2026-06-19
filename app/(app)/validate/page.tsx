@@ -434,6 +434,12 @@ export default function ValidatePage() {
     setResults(null);
   }, []);
 
+  // Sync-Ready fields (bpm/key/mood/contact/toggles) don't feed the rule engine,
+  // so editing them must NOT clear an existing validation result below the panel.
+  const updateTrackKeepResults = useCallback((idx: number, key: keyof TrackMeta, val: string) => {
+    setTracks((prev) => prev.map((t, i) => (i === idx ? { ...t, [key]: val } : t)));
+  }, []);
+
   const addTrack = () => setTracks((prev) => [...prev, emptyTrack(prev.length + 1)]);
   const removeTrack = (idx: number) => setTracks((prev) => prev.filter((_, i) => i !== idx));
 
@@ -536,13 +542,19 @@ export default function ValidatePage() {
     const fixable = results?.filter((r) => r.fixable && !r._fixed && r.suggestion) ?? [];
     let updated = [...fixedTracks];
     const appliedRules = new Set<string>();
+    // Two fixable rules can target the same cell (e.g. several Title rules). Apply
+    // the FIRST per cell and leave the rest genuinely outstanding — otherwise the
+    // later ones get marked "fixed" without their suggestion actually being written.
+    const writtenCells = new Set<string>();
     fixable.forEach((r) => {
       const idx = r.trackIndex ?? 0;
       const fieldKey = resolveFieldKey(r.field);
-      if (fieldKey) {
-        updated = updated.map((t, i) => i === idx ? { ...t, [fieldKey]: r.suggestion! } : t);
-        appliedRules.add(`${r.rule}:${r.trackIndex ?? -1}`);
-      }
+      if (!fieldKey) return;
+      const cell = `${idx}:${fieldKey}`;
+      if (writtenCells.has(cell)) return;
+      updated = updated.map((t, i) => i === idx ? { ...t, [fieldKey]: r.suggestion! } : t);
+      writtenCells.add(cell);
+      appliedRules.add(`${r.rule}:${r.trackIndex ?? -1}`);
     });
     setFixedTracks(updated);
     setTracks(updated);
@@ -837,7 +849,7 @@ export default function ValidatePage() {
           </button>
           {showSync && (
             <div className="mt-5 pt-5 border-t border-border">
-              <SyncPanel track={tracks[0]} onChange={(key, val) => updateTrack(0, key, val)} />
+              <SyncPanel track={tracks[0]} onChange={(key, val) => updateTrackKeepResults(0, key, val)} />
             </div>
           )}
         </div>
