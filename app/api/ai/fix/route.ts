@@ -61,8 +61,6 @@ function buildRuleFallback(tracks: TrackInput[], results: ResultInput[]) {
 
 export async function POST(req: Request) {
   const { userId } = await auth();
-  // TEMP diagnostic: ?diag=mc1 surfaces the underlying model error (no secrets).
-  const diag = new URL(req.url).searchParams.get("diag") === "mc1";
 
   // Rate limit by user (if signed in) or IP. Public demo callers are anonymous,
   // so the IP bucket is the primary guard against Gemini-key abuse.
@@ -161,11 +159,7 @@ export async function POST(req: Request) {
     console.error("Gemini API error:", err instanceof Error ? err.message : err);
     // Model/credentials failure → deterministic fallback so the user still gets value.
     return Response.json({
-      data: {
-        fixes: buildRuleFallback(tracks, results),
-        source: "rules",
-        ...(diag ? { _diag: String(err instanceof Error ? err.message : err).slice(0, 800) } : {}),
-      },
+      data: { fixes: buildRuleFallback(tracks, results), source: "rules" },
       error: null,
     });
   }
