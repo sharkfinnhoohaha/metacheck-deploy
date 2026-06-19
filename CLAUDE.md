@@ -1,9 +1,13 @@
 # CLAUDE.md — MetaCheck: Build the Functional Tool
 
-## Status (updated 1 April 2026)
+## Status (updated 18 June 2026)
 
 **All 9 build phases are complete. The codebase compiles cleanly (`npm run build` ✓).**
 The app is ready for environment setup and deployment. See **Next Steps** at the bottom.
+
+The core metadata-checking feature was audited and substantially expanded on
+18 June 2026 — see **Metadata-checking audit & feature pass** below for the new
+rules, distributor profiles, artwork QC, and batch mode.
 
 ### Phase completion
 
@@ -11,8 +15,8 @@ The app is ready for environment setup and deployment. See **Next Steps** at the
 |-------|--------|-------|
 | 1 — Auth + App Shell | ✅ Done | Clerk, middleware, sidebar, redirect |
 | 2 — Database | ✅ Done | Schema + RLS policies fixed (see below) |
-| 3 — Validation Engine | ✅ Done | 30+ rules, fully client-side |
-| 4 — Validate Page | ✅ Done | Single / multi-track / CSV modes |
+| 3 — Validation Engine | ✅ Done | 40+ rules, fully client-side, distributor-profile aware |
+| 4 — Validate Page | ✅ Done | Single / multi-track / CSV / batch modes + artwork QC |
 | 5 — AI Fix Suggestions | ✅ Done | Claude API route, Pro gating, usage tracking |
 | 6 — Export | ✅ Done | CSV download + PDF report (jsPDF) |
 | 7 — Dashboard + History | ✅ Done | Server components, Supabase reads |
@@ -107,6 +111,44 @@ copy its Webhook ID. Fill `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET`, `PAYPAL_EN
 
 ---
 
+## Metadata-checking audit & feature pass (18 June 2026)
+
+The core validation feature was audited and expanded. **Bugs fixed:**
+
+- **Grade/counts went stale after applying fixes.** `getGrade(results)` counted the full
+  results array, ignoring the `_fixed` flag, so the grade card and the saved-history record
+  stayed on the original grade after "Auto-fix All". Now computed over outstanding (`!_fixed`)
+  issues in `validate/page.tsx`.
+- **AI fallback fixes silently no-op'd on multi-word fields.** The `/api/ai/fix` fallback emitted
+  `field: r.field.toLowerCase()` (e.g. `"release date"`), which isn't a valid `TrackMeta` key, so
+  `applyAiFix` wrote a junk property. The fallback now maps display labels → real keys; the page's
+  `applyAiFix` also resolves both forms via `resolveFieldKey`.
+- **Malformed release dates passed silently.** `new Date("banana")` is `Invalid Date` and every
+  comparison was `false` → no feedback. Added a `date_invalid` critical.
+- **Inverted `producer_no_writer` rule.** Fired when producers were *absent* but its message claimed
+  "Producers listed but no songwriters". Removed.
+
+**Five improvements added** (all rooted in documented DSP rejection causes / market demand):
+
+1. **DSP style-guide linter** — all-lowercase + title-case enforcement, and unbracketed version
+   descriptors (`"Song Live"` → suggests `"Song (Live)"`). Trailing-word match only, so
+   `"Live Your Life"` doesn't false-trigger.
+2. **Publishing validation** — writer **splits must total 100%** (critical otherwise), **ISWC**
+   format/presence, and a release-level **MLC registration reminder** (ASCAP/BMI ≠ MLC).
+3. **Artwork QC** (`lib/validation/artwork.ts`) — client-side spec checks (square, ≥3000×3000,
+   JPG/PNG, **CMYK detection by reading the JPEG SOF marker**) + opt-in **OCR** scan for forbidden
+   URLs/handles/emails/dates via lazy-loaded `tesseract.js`.
+4. **Editorial-pitch timeline** — day-accurate release-date guidance (missed Spotify 7-day window
+   vs. the 14-day sweet spot).
+5. **Per-distributor profiles + batch mode** — `lib/validation/profiles.ts` (DistroKid / CD Baby /
+   TuneCore / Apple / generic) retunes severities; a "Batch / Catalog" mode groups a CSV into
+   releases by album and grades each.
+
+**No new operator setup or env vars.** `tesseract.js` installs via `npm install` on deploy and
+runs entirely in the browser (model downloads from CDN on first artwork text scan).
+
+---
+
 ## Context
 MetaCheck is a music metadata validation SaaS. The landing page is live on Vercel.
 All authenticated app routes have been built alongside the marketing page.
@@ -124,6 +166,9 @@ This is a Next.js 15 (App Router) project.
 - **Styling**: Tailwind CSS v4 (already configured). Dark theme with teal accent (`#0d9488`).
 - **File parsing**: `papaparse` for CSV parsing
 - **PDF export**: `@react-pdf/renderer` or `jspdf` for generating clean PDF reports
+- **Artwork OCR**: `tesseract.js` — **lazy-loaded** in the browser only when the user
+  runs the artwork text scan (keeps it out of the page bundle; `/validate` stays ~15 kB).
+  The engine + English model download from a CDN on first scan. No server-side OCR.
 - **Deployment**: Vercel
 
 ## Current File Structure
@@ -161,8 +206,10 @@ lib/
   supabase/client.ts            # Browser client (createBrowserClient)
   supabase/server.ts            # Server client (createServerClient + cookies)
   supabase/admin.ts             # Admin client (service key, bypasses RLS)
-  validation/rules.ts           # validateTrack, validateRelease, getGrade
-  validation/types.ts           # TrackMeta, ValidationResult, Grade, AiFix
+  validation/rules.ts           # validateTrack, validateRelease, getGrade (profile-aware)
+  validation/types.ts           # TrackMeta, ValidationResult, Grade, AiFix, DistributorProfile, ArtworkCheckResult
+  validation/profiles.ts        # Per-distributor rule profiles (DistroKid/CD Baby/TuneCore/Apple/generic)
+  validation/artwork.ts         # checkArtworkFile (specs + JPEG-CMYK), scanArtworkText (lazy OCR)
 supabase/
   migrations/001_schema.sql     # users, usage, releases tables + RLS
 middleware.ts                   # Clerk route protection
@@ -174,6 +221,15 @@ middleware.ts                   # Clerk route protection
 All phases from the original spec are implemented. Key notes for ongoing work:
 
 - Validation runs **100% client-side** — `lib/validation/rules.ts` is the source of truth. No server route needed for basic rules.
+- `validateTrack(track, trackIndex?, profile?)` and `validateRelease(tracks, profile?)` take an
+  optional **`DistributorProfile`** (from `lib/validation/profiles.ts`). The profile retunes which
+  checks are critical vs. informational (e.g. DistroKid auto-assigns ISRC/UPC, Apple requires a
+  producer credit). Defaults to the conservative `generic` profile, so existing 1/2-arg calls
+  (e.g. the public demo) still work.
+- `TrackMeta` now includes **`iswc`** and **`splits`** (writer splits as free text, e.g.
+  `"Jane 50%, John 50%"` — the engine parses the percentages and requires them to total 100%).
+- The validate page has four modes: single / multi / CSV / **batch**. Batch groups a flat CSV
+  into releases by album and grades each separately. Artwork QC is a separate client-side panel.
 - AI suggestions hit `POST /api/ai/fix` which calls Claude Sonnet 4. Gated to Pro/Team tier.
 - All DB writes go through the admin Supabase client (service key, server-side only). Client-side Supabase reads use cookies-based server client.
 - Stripe tier mapping lives in `app/api/webhooks/stripe/route.ts` — if you add new price IDs, update the price→tier map there.
