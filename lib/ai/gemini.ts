@@ -7,14 +7,15 @@ import { IdentityPoolClient } from "google-auth-library";
  * fallback if Google retires one (as happened to `gemini-2.0-flash`, shut down
  * 1 June 2026 — which the old code still referenced).
  *
- * `gemini-3.5-flash` leads because production runtime logs showed
- * `gemini-3.1-flash-lite` failing on EVERY call in this Vertex project (it's not
- * served here), wasting a doomed request before falling through. Flash-lite is
- * kept last as a harmless fallback in case it's enabled later.
+ * `gemini-2.5-flash` leads because production runtime logs showed BOTH 3.x names
+ * (`gemini-3.1-flash-lite` and `gemini-3.5-flash`) failing on every call in this
+ * Vertex project/region — only 2.5-flash is reliably served here. Leading with a
+ * doomed model wastes a request + adds latency on every AI call. The 3.x names are
+ * kept as fallbacks in case they're enabled later.
  *
  * Override with the GEMINI_MODELS env var (comma-separated) without a code change.
  */
-const MODELS = (process.env.GEMINI_MODELS ?? "gemini-3.5-flash,gemini-2.5-flash,gemini-3.1-flash-lite")
+const MODELS = (process.env.GEMINI_MODELS ?? "gemini-2.5-flash,gemini-3.5-flash,gemini-3.1-flash-lite")
   .split(",")
   .map((s) => s.trim())
   .filter(Boolean);
