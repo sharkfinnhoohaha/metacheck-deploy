@@ -123,9 +123,9 @@ export async function POST(req: Request) {
     const jsonMatch = text.match(/\{[\s\S]*\}/);
     const cleanText = jsonMatch ? jsonMatch[0] : text;
 
-    let brief: unknown;
+    let parsed: unknown;
     try {
-      brief = JSON.parse(cleanText);
+      parsed = JSON.parse(cleanText);
     } catch {
       console.error("Malformed AI brief:", text.slice(0, 500));
       return Response.json({
@@ -133,6 +133,32 @@ export async function POST(req: Request) {
         error: null,
       });
     }
+
+    // An LLM can emit valid JSON of the WRONG shape (missing verdict, exposure as a
+    // string). That would crash the client (.map on a non-array) or waste the free
+    // taste, so validate + normalize before billing — fall back to rules otherwise.
+    const b = parsed as Record<string, unknown>;
+    if (!b || typeof b !== "object" || typeof b.verdict !== "string") {
+      console.error("Malformed AI brief shape:", text.slice(0, 500));
+      return Response.json({
+        data: { brief: buildBriefFallback(results, distributor), source: "rules" },
+        error: null,
+      });
+    }
+    const brief = {
+      verdict: b.verdict,
+      headline: typeof b.headline === "string" ? b.headline : undefined,
+      summary: typeof b.summary === "string" ? b.summary : undefined,
+      exposure: Array.isArray(b.exposure)
+        ? (b.exposure as unknown[])
+            .filter((e) => !!e && typeof e === "object")
+            .map((e) => {
+              const o = e as Record<string, unknown>;
+              return { issue: String(o.issue ?? ""), cost: String(o.cost ?? "") };
+            })
+        : [],
+      fixOrder: Array.isArray(b.fixOrder) ? (b.fixOrder as unknown[]).map((x) => String(x)) : [],
+    };
 
     if (userId) {
       try {

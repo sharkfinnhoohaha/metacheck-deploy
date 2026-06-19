@@ -1199,7 +1199,7 @@ export default function ValidatePage() {
                   {brief.headline && <p className="text-sm text-text font-medium">{brief.headline}</p>}
                 </div>
                 {brief.summary && <p className="text-sm text-text-muted leading-relaxed">{brief.summary}</p>}
-                {brief.exposure && brief.exposure.length > 0 && (
+                {Array.isArray(brief.exposure) && brief.exposure.length > 0 && (
                   <div>
                     <p className="text-xs text-text-dim uppercase tracking-wider mb-2">What it costs you</p>
                     <div className="space-y-2">
@@ -1212,7 +1212,7 @@ export default function ValidatePage() {
                     </div>
                   </div>
                 )}
-                {brief.fixOrder && brief.fixOrder.length > 0 && (
+                {Array.isArray(brief.fixOrder) && brief.fixOrder.length > 0 && (
                   <div>
                     <p className="text-xs text-text-dim uppercase tracking-wider mb-2">Fix in this order</p>
                     <ol className="space-y-1.5">
