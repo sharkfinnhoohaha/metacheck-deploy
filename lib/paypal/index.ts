@@ -9,10 +9,16 @@ const PAYPAL_API_BASE =
     : "https://api-m.sandbox.paypal.com";
 
 // Maps a PayPal Billing Plan ID -> app tier (mirrors PRICE_TO_TIER for Stripe).
+// Includes monthly and annual plans; both intervals resolve to the same tier.
 export const PAYPAL_PLAN_TO_TIER: Record<string, "pro" | "team"> = {
   [process.env.PAYPAL_PRO_PLAN_ID ?? ""]: "pro",
   [process.env.PAYPAL_TEAM_PLAN_ID ?? ""]: "team",
+  [process.env.PAYPAL_PRO_ANNUAL_PLAN_ID ?? ""]: "pro",
+  [process.env.PAYPAL_TEAM_ANNUAL_PLAN_ID ?? ""]: "team",
 };
+delete PAYPAL_PLAN_TO_TIER[""]; // drop the collapsed key from any unset env vars
+
+export type PayPalInterval = "month" | "year";
 
 let _token: { value: string; expiresAt: number } | null = null;
 
@@ -56,10 +62,18 @@ async function pp(path: string, init: { method?: string; body?: string } = {}): 
 export async function createSubscription(
   clerkId: string,
   email: string,
-  tier: "pro" | "team"
+  tier: "pro" | "team",
+  interval: PayPalInterval = "month"
 ): Promise<string> {
-  const planId = tier === "pro" ? process.env.PAYPAL_PRO_PLAN_ID : process.env.PAYPAL_TEAM_PLAN_ID;
-  if (!planId) throw new Error(`PayPal plan ID for tier "${tier}" is not configured`);
+  const planId =
+    interval === "year"
+      ? tier === "pro"
+        ? process.env.PAYPAL_PRO_ANNUAL_PLAN_ID
+        : process.env.PAYPAL_TEAM_ANNUAL_PLAN_ID
+      : tier === "pro"
+        ? process.env.PAYPAL_PRO_PLAN_ID
+        : process.env.PAYPAL_TEAM_PLAN_ID;
+  if (!planId) throw new Error(`PayPal plan ID for tier "${tier}" (${interval}) is not configured`);
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "";
   const res = await pp("/v1/billing/subscriptions", {

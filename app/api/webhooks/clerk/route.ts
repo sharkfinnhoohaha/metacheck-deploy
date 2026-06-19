@@ -41,8 +41,13 @@ export async function POST(req: Request) {
     const email = primaryEmail?.email_address ?? "";
     const name = [data.first_name, data.last_name].filter(Boolean).join(" ");
 
+    // IMPORTANT: do NOT write `tier` here. `user.updated` fires on every profile
+    // change, and including `tier: "free"` in the upsert silently downgraded
+    // paying customers on each edit. Omitting it means new rows get the column
+    // default ('free') while existing tiers are preserved; billing webhooks are
+    // the sole source of truth for `tier`.
     const { error } = await supabaseAdmin.from("users").upsert(
-      { clerk_id: data.id, email, name, tier: "free" },
+      { clerk_id: data.id, email, name },
       { onConflict: "clerk_id", ignoreDuplicates: false }
     );
     if (error) {

@@ -5,6 +5,7 @@ import { supabaseAdmin } from "@/lib/supabase/admin";
 import { redirect } from "next/navigation";
 
 const schema = z.enum(["pro", "team"]);
+const intervalSchema = z.enum(["month", "year"]).default("month");
 
 export async function GET(req: Request) {
   const { userId } = await auth();
@@ -15,6 +16,7 @@ export async function GET(req: Request) {
   if (!tier.success) {
     return Response.redirect(new URL("/settings?error=invalid_tier", req.url));
   }
+  const interval = intervalSchema.parse(url.searchParams.get("interval") ?? undefined);
 
   const user = await currentUser();
   if (!user) return Response.redirect(new URL("/sign-in", req.url));
@@ -27,6 +29,12 @@ export async function GET(req: Request) {
     { onConflict: "clerk_id", ignoreDuplicates: false }
   );
 
-  const approvalUrl = await createSubscription(userId, email, tier.data);
-  redirect(approvalUrl);
+  try {
+    const approvalUrl = await createSubscription(userId, email, tier.data, interval);
+    redirect(approvalUrl);
+  } catch (err) {
+    if (err && typeof err === "object" && "digest" in err) throw err;
+    console.error("PayPal checkout error:", err);
+    return Response.redirect(new URL("/settings?error=checkout_failed", req.url));
+  }
 }

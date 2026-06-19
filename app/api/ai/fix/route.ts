@@ -1,40 +1,86 @@
 import { auth } from "@clerk/nextjs/server";
-import { GoogleGenerativeAI } from "@google/generative-ai";
 import { z } from "zod";
 import { trackUsage, canUseAI } from "@/lib/auth/index";
 import { AI_FIX_SYSTEM_PROMPT } from "@/lib/ai/prompts";
-
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
-const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+import { generateText, isAiConfigured } from "@/lib/ai/gemini";
+import { rateLimit, clientIp } from "@/lib/ratelimit";
 
 const RequestSchema = z.object({
-  tracks: z.array(z.record(z.string(), z.any())),
-  results: z.array(
-    z.object({
-      rule: z.string(),
-      field: z.string(),
-      trackIndex: z.number().optional(),
-      severity: z.enum(["critical", "warning", "suggestion"]),
-      message: z.string(),
-      suggestion: z.string().optional(),
-      fixable: z.boolean(),
-    })
-  ),
+  // Bounded to a realistic release size so an anonymous caller can't post a
+  // giant payload to run up token cost against the Gemini key.
+  tracks: z.array(z.record(z.string(), z.any())).max(50),
+  results: z
+    .array(
+      z.object({
+        rule: z.string().max(200),
+        field: z.string().max(100),
+        trackIndex: z.number().optional(),
+        severity: z.enum(["critical", "warning", "suggestion"]),
+        message: z.string().max(2000),
+        suggestion: z.string().max(2000).optional(),
+        fixable: z.boolean(),
+      })
+    )
+    .max(300),
 });
+
+type ResultInput = z.infer<typeof RequestSchema>["results"][number];
+type TrackInput = Record<string, unknown>;
+
+// `field` must be a real TrackMeta key so the client can apply the fix — the
+// engine's display labels ("Release Date", "Featured Artists") don't lowercase
+// to a valid key, so map them explicitly and skip anything we can't resolve.
+const FIELD_LABEL_TO_KEY: Record<string, string> = {
+  isrc: "isrc", title: "title", artist: "artist",
+  "featured artists": "featuredArtists", album: "album", upc: "upc",
+  genre: "genre", "release date": "releaseDate", songwriters: "songwriters",
+  producers: "producers", composers: "composers", copyright: "copyright",
+  explicit: "explicit", language: "language", label: "label",
+  duration: "duration", "track number": "trackNumber", iswc: "iswc", splits: "splits",
+};
+
+/** Deterministic rule-based fixes — used for the public demo and as a fallback
+ *  when no AI key is configured or the model call fails. */
+function buildRuleFallback(tracks: TrackInput[], results: ResultInput[]) {
+  return results
+    .filter((r) => r.fixable)
+    .map((r) => {
+      const key = FIELD_LABEL_TO_KEY[r.field.toLowerCase().trim()];
+      if (!key) return null;
+      const idx = r.trackIndex ?? 0;
+      return {
+        trackIndex: idx,
+        field: key,
+        original: (tracks[idx]?.[key] as string) || "",
+        fixed: r.suggestion || "Fixed value",
+        reason: "Auto-corrected based on validation rules.",
+      };
+    })
+    .filter((f): f is NonNullable<typeof f> => f !== null);
+}
 
 export async function POST(req: Request) {
   const { userId } = await auth();
 
-  // Authenticated users must be on a paid tier and have AI quota remaining.
+  // Rate limit by user (if signed in) or IP. Public demo callers are anonymous,
+  // so the IP bucket is the primary guard against Gemini-key abuse.
+  const rlKey = userId ?? `ip:${clientIp(req)}`;
+  const { success } = await rateLimit("ai-fix", rlKey, { requests: 15, windowSec: 60 });
+  if (!success) {
+    return Response.json(
+      { data: null, error: "Too many requests — slow down and try again in a minute." },
+      { status: 429 }
+    );
+  }
+
+  // Authenticated users must be on a paid tier with AI quota remaining.
   // Anonymous requests are intentionally allowed so the public marketing demo
-  // on the landing page keeps working without a login.
+  // keeps working (it falls back to rule-based fixes when no key is configured).
   if (userId) {
     let allowed = false;
     try {
       allowed = await canUseAI(userId);
     } catch (err) {
-      // Fail closed: if we can't verify entitlement, don't hand out AI access
-      // (otherwise a transient DB error lets free-tier users bypass the gate).
       console.error("AI gating check failed:", err);
       return Response.json(
         { data: null, error: "Couldn't verify your subscription right now. Please try again." },
@@ -49,7 +95,6 @@ export async function POST(req: Request) {
     }
   }
 
-  // Parse and validate body
   let body: unknown;
   try {
     body = await req.json();
@@ -59,28 +104,26 @@ export async function POST(req: Request) {
 
   const parsed = RequestSchema.safeParse(body);
   if (!parsed.success) {
-    return Response.json({ data: null, error: parsed.error.message }, { status: 400 });
+    return Response.json({ data: null, error: "Invalid request payload." }, { status: 400 });
   }
 
   const { tracks, results } = parsed.data;
 
-  // Track AI usage if logged in
-  if (userId) {
-    try {
-      await trackUsage(userId, "ai_call");
-    } catch (err) {
-      console.warn("Usage tracking failed, proceeding anyway:", err);
-    }
+  // No AI configured → serve deterministic rule-based fixes (powers the demo).
+  // Not charged as an AI call because no model was invoked.
+  if (!isAiConfigured()) {
+    return Response.json({
+      data: { fixes: buildRuleFallback(tracks, results), source: "rules" },
+      error: null,
+    });
   }
 
   try {
     const prompt = `System Instructions: ${AI_FIX_SYSTEM_PROMPT}\n\nHere are the tracks and their validation issues. Suggest fixes:\n\nTRACKS:\n${JSON.stringify(tracks, null, 2)}\n\nVALIDATION ISSUES:\n${JSON.stringify(results, null, 2)}`;
-    
-    const result = await model.generateContent(prompt);
-    const response = await result.response;
-    const text = response.text();
 
-    // Gemini might wrap JSON in markdown blocks
+    const text = await generateText(prompt);
+
+    // Gemini may wrap JSON in markdown fences — extract the first object.
     const jsonMatch = text.match(/\{[\s\S]*\}/);
     const cleanText = jsonMatch ? jsonMatch[0] : text;
 
@@ -88,48 +131,31 @@ export async function POST(req: Request) {
     try {
       const json = JSON.parse(cleanText);
       fixes = Array.isArray(json.fixes) ? json.fixes : [];
-    } catch (err) {
-      console.error("Malformed AI response:", text);
-      return Response.json({ data: null, error: "AI returned malformed response" }, { status: 502 });
+    } catch {
+      console.error("Malformed AI response:", text.slice(0, 500));
+      // Don't bill a failed call — fall back to rules instead of erroring.
+      return Response.json({
+        data: { fixes: buildRuleFallback(tracks, results), source: "rules" },
+        error: null,
+      });
     }
 
-    return Response.json({ data: { fixes }, error: null });
+    // Charge usage only after a successful AI generation (never on fallback).
+    if (userId) {
+      try {
+        await trackUsage(userId, "ai_call");
+      } catch (err) {
+        console.warn("Usage tracking failed, proceeding anyway:", err);
+      }
+    }
+
+    return Response.json({ data: { fixes, source: "ai" }, error: null });
   } catch (err) {
-    console.error("Gemini API error:", err);
-    
-    // FALLBACK: For the demo, if the AI service is busy or fails, return simulated fixes
-    // to ensure the user gets an "immediate accurate response" as requested.
-    // `field` must be a TrackMeta key so the client can apply it — the engine's
-    // display labels ("Release Date", "Featured Artists") don't lowercase to a
-    // valid key, so map them explicitly and skip anything we can't resolve.
-    const FIELD_LABEL_TO_KEY: Record<string, string> = {
-      "isrc": "isrc", "title": "title", "artist": "artist",
-      "featured artists": "featuredArtists", "album": "album", "upc": "upc",
-      "genre": "genre", "release date": "releaseDate", "songwriters": "songwriters",
-      "producers": "producers", "composers": "composers", "copyright": "copyright",
-      "explicit": "explicit", "language": "language", "label": "label",
-      "duration": "duration", "track number": "trackNumber",
-    };
-    const fallbackFixes = results
-      .filter(r => r.fixable)
-      .map((r) => {
-        const key = FIELD_LABEL_TO_KEY[r.field.toLowerCase().trim()];
-        if (!key) return null;
-        const idx = r.trackIndex ?? 0;
-        return {
-          trackIndex: idx,
-          field: key,
-          original: tracks[idx]?.[key] || "",
-          fixed: r.suggestion || "Fixed value",
-          reason: "Auto-corrected based on validation rules (Demo Fallback)",
-        };
-      })
-      .filter((f): f is NonNullable<typeof f> => f !== null);
-
-    if (fallbackFixes.length > 0) {
-      return Response.json({ data: { fixes: fallbackFixes }, error: null });
-    }
-
-    return Response.json({ data: null, error: "AI service error. Please try again." }, { status: 502 });
+    console.error("Gemini API error:", err instanceof Error ? err.message : err);
+    // Model/credentials failure → deterministic fallback so the user still gets value.
+    return Response.json({
+      data: { fixes: buildRuleFallback(tracks, results), source: "rules" },
+      error: null,
+    });
   }
 }

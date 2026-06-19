@@ -1,11 +1,20 @@
 import Stripe from "stripe";
 import { stripe } from "@/lib/stripe";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { addCredits } from "@/lib/auth";
 
-const PRICE_TO_TIER: Record<string, string> = {
+// Maps every configured Stripe price (monthly + annual) → app tier.
+const PRICE_TO_TIER: Record<string, "pro" | "team"> = {
   [process.env.STRIPE_PRO_PRICE_ID ?? ""]: "pro",
   [process.env.STRIPE_TEAM_PRICE_ID ?? ""]: "team",
+  [process.env.STRIPE_PRO_ANNUAL_PRICE_ID ?? ""]: "pro",
+  [process.env.STRIPE_TEAM_ANNUAL_PRICE_ID ?? ""]: "team",
 };
+delete PRICE_TO_TIER[""]; // guard against unset env vars collapsing to a single "" key
+
+function tierForPrice(priceId: string): "pro" | "team" | null {
+  return PRICE_TO_TIER[priceId] ?? null;
+}
 
 export async function POST(req: Request) {
   const body = await req.text();
@@ -17,11 +26,7 @@ export async function POST(req: Request) {
 
   let event: Stripe.Event;
   try {
-    event = stripe.webhooks.constructEvent(
-      body,
-      sig,
-      process.env.STRIPE_WEBHOOK_SECRET!
-    );
+    event = stripe.webhooks.constructEvent(body, sig, process.env.STRIPE_WEBHOOK_SECRET!);
   } catch (err) {
     const message = err instanceof Error ? err.message : "Webhook verification failed";
     return Response.json({ error: message }, { status: 400 });
@@ -34,13 +39,24 @@ export async function POST(req: Request) {
         const clerkId = session.metadata?.clerk_id;
         if (!clerkId) break;
 
-        // Retrieve subscription to get the price ID
+        // One-time per-release credit purchase (mode: "payment").
+        if (session.mode === "payment" && session.metadata?.kind === "release_credit") {
+          const qty = parseInt(session.metadata?.credits ?? "1", 10) || 1;
+          await addCredits(clerkId, qty);
+          break;
+        }
+
+        // Subscription checkout → set tier from the purchased price.
         const subscriptionId = session.subscription as string;
         if (!subscriptionId) break;
 
         const subscription = await stripe.subscriptions.retrieve(subscriptionId);
         const priceId = subscription.items.data[0]?.price.id ?? "";
-        const tier = PRICE_TO_TIER[priceId] ?? "pro";
+        const tier = tierForPrice(priceId);
+        if (!tier) {
+          console.error("Stripe webhook: unmapped price on checkout, skipping tier set", { priceId, subscriptionId });
+          break;
+        }
 
         await supabaseAdmin.from("users").upsert(
           {
@@ -57,8 +73,11 @@ export async function POST(req: Request) {
       case "customer.subscription.updated": {
         const subscription = event.data.object as Stripe.Subscription;
         const priceId = subscription.items.data[0]?.price.id ?? "";
-        const tier = PRICE_TO_TIER[priceId] ?? "pro";
-
+        const tier = tierForPrice(priceId);
+        if (!tier) {
+          console.error("Stripe webhook: unmapped price on update, skipping", { priceId });
+          break;
+        }
         await supabaseAdmin
           .from("users")
           .update({ tier, stripe_subscription_id: subscription.id })
