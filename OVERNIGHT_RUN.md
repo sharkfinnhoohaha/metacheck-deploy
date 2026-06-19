@@ -51,6 +51,22 @@ Started: 2026-06-19 (overnight). Branch: `worktree-ui-modernize`.
 - `lib/validation/rules.ts` — AI-disclosure rule (profile-aware).
 - `lib/validation/sync.ts` — NEW Sync-Ready scoring engine (0–100, clearable/usable/discoverable).
 
+## Reddit pain-point coverage pass (follow-up)
+Ran a multi-agent audit: 6 research agents (Reddit + distributor forums) → 45 pain points → coverage audit vs. the engine → adversarial verification → **39 confirmed gaps**. Closed the ~20 highest-value ones that work on EXISTING fields (zero new UI), verified with a 29-assertion behavioral test harness (all pass):
+
+- **Titles:** broadened feat-in-title detection (feat./ft./featuring/with/brackets, fixable), banned/promo words (Original Mix, Exclusive, Out Now…), store/DSP names, URLs/@handles (critical), keyword-stuffing/playlist-bait, double-space, decorative-unicode (fancy fonts), square-bracket balance, expanded version descriptors (edit/mix/radio edit/VIP/version/sped-up…).
+- **Identifiers:** ISRC↔UPC swap detection (both directions), UPC GS1 check-digit validation.
+- **Credits:** placeholder credits (TBD/Pending/N/A, critical on Apple), full-legal-name heuristic (handles/single-token).
+- **Artist:** casing/punctuation-only duplicate-profile split (critical), generic/SEO artist-name flag.
+- **Scheduling:** missing-date warning, same-day-release warning, distributor delivery lead-time math (`reviewLeadDays` per profile) feeding the editorial-pitch window.
+- **Other:** generic-genre flag, sub-30s + ~31s royalty-farming + functional-track min-length, explicit/profanity mismatch, language/charset mismatch, SoundExchange registration reminder.
+
+**Deferred (need NEW input fields — your call before I add UI):**
+- Re-upload / distributor-switch ISRC continuity (reuse old ISRC or streams reset to 0) — needs `isReupload` + `existingIsrc`.
+- Artist-profile collision via supplying Spotify URI / Apple Artist ID — needs `spotifyArtistId` / `appleArtistId`.
+- Cover/remix mechanical-license + clearance — needs `isCover`/`isRemix`/`mechanicalLicenseSecured`.
+- One-pitch-per-release picker (`pitchPick`), publishing-admin double-registration conflict (`publishingAdmin`), artwork-text↔metadata exact-match (extend OCR).
+
 ## Operator action items (chat reply has these too)
 1. This work is on branch `worktree-ui-modernize` (NOT merged to main, NOT pushed). Review, then merge when happy.
 2. Nothing new to configure — both new features run 100% client-side, no env vars.

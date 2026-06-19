@@ -91,6 +91,12 @@ export type DistributorProfile = {
    *  - "ban":        fully-AI tracks are prohibited and removed (CD Baby).
    */
   aiPolicy: "open" | "disclose" | "restricted" | "ban";
+  /**
+   * Typical distributor review/delivery lead time in days (high end of the
+   * documented range). Used to compute when a release actually reaches DSPs, so
+   * editorial-pitch warnings account for delivery lag, not just the raw date.
+   */
+  reviewLeadDays: number;
 };
 
 /** Result of validating a release's cover artwork against DSP submission specs. */
