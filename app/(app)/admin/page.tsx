@@ -69,8 +69,8 @@ export default async function AdminPage() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         {kpis.map((k) => (
           <div key={k.label} className="rounded-2xl border border-border bg-bg-card p-5">
-            <p className="text-xs text-text-dim uppercase tracking-wider mb-2">{k.label}</p>
-            <p className="text-3xl font-bold text-text">{k.value}</p>
+            <p className="eyebrow mb-2">{k.label}</p>
+            <p className="text-3xl font-bold text-text nums">{k.value}</p>
             <p className="text-xs text-text-muted mt-1.5 leading-relaxed">{k.sub}</p>
           </div>
         ))}
@@ -78,11 +78,11 @@ export default async function AdminPage() {
 
       {/* Tier breakdown */}
       <div className="rounded-2xl border border-border bg-bg-card p-5 mb-8">
-        <p className="text-xs text-text-dim uppercase tracking-wider mb-3">Users by tier</p>
+        <p className="eyebrow mb-3">Users by tier</p>
         <div className="flex flex-wrap gap-3">
           {(["free", "pro", "team"] as const).map((t) => (
             <div key={t} className="flex items-baseline gap-2 rounded-lg bg-surface/50 border border-border px-4 py-2">
-              <span className="text-2xl font-bold text-text">{byTier[t] ?? 0}</span>
+              <span className="text-2xl font-bold text-text nums">{byTier[t] ?? 0}</span>
               <span className="text-sm text-text-muted">{TIER_LABEL[t]}</span>
             </div>
           ))}
@@ -92,7 +92,7 @@ export default async function AdminPage() {
       <div className="grid lg:grid-cols-2 gap-6 mb-8">
         {/* Recent signups */}
         <div>
-          <h2 className="text-xs text-text-dim uppercase tracking-widest mb-3">Recent signups</h2>
+          <h2 className="eyebrow mb-3">Recent signups</h2>
           {recentUsers.length === 0 ? (
             <div className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-text-muted">No users yet.</div>
           ) : (
@@ -115,7 +115,7 @@ export default async function AdminPage() {
 
         {/* Recent releases */}
         <div>
-          <h2 className="text-xs text-text-dim uppercase tracking-widest mb-3">Recent releases validated</h2>
+          <h2 className="eyebrow mb-3">Recent releases validated</h2>
           {recentReleases.length === 0 ? (
             <div className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-text-muted">No releases yet.</div>
           ) : (
@@ -139,7 +139,7 @@ export default async function AdminPage() {
 
       {/* What to watch */}
       <div className="rounded-2xl border border-border bg-bg-elevated p-5">
-        <h2 className="text-xs text-text-dim uppercase tracking-widest mb-3">What to watch</h2>
+        <h2 className="eyebrow mb-3">What to watch</h2>
         <ul className="space-y-2.5 text-sm text-text-muted">
           <li className="flex gap-2.5"><IconArrowRight size={15} className="text-accent-bright mt-0.5 shrink-0" /><span><span className="text-text">AI / Vertex credit burn</span> — {aiCallsThisMonth} AI calls this month. Watch GCP Billing → Vertex AI for spend against the $300 credit.</span></li>
           <li className="flex gap-2.5"><IconArrowRight size={15} className="text-accent-bright mt-0.5 shrink-0" /><span><span className="text-text">Conversions</span> — {paidUsers} paying of {totalUsers} users. Free users get 1 AI fix/mo; that&apos;s the convert lever.</span></li>

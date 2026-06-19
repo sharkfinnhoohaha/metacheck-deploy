@@ -199,7 +199,7 @@ export default function Home() {
                   <div className="flex items-center gap-2 mb-2">
                     <h3 className="font-semibold text-text">{f.title}</h3>
                   </div>
-                  <p className="text-xs text-text-dim uppercase tracking-wider mb-3">{f.cat}</p>
+                  <p className="eyebrow mb-3">{f.cat}</p>
                   <p className="text-sm text-text-muted leading-relaxed">{f.desc}</p>
                 </div>
               </Reveal>

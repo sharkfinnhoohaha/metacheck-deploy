@@ -53,7 +53,7 @@ export default async function SettingsPage({
 
       {/* Current plan */}
       <section className="mb-10">
-        <h2 className="font-mono text-xs text-text-dim uppercase tracking-widest mb-4">Current Plan</h2>
+        <h2 className="eyebrow mb-4">Current Plan</h2>
         <div className="rounded-xl border border-border bg-bg-card p-6 flex items-center justify-between">
           <div>
             <p className="text-lg font-semibold capitalize text-text">{tier}</p>
@@ -65,7 +65,7 @@ export default async function SettingsPage({
                   : "Unlimited · 1500 AI calls/month"}
             </p>
             {credits > 0 && (
-              <p className="text-sm text-accent-bright font-mono mt-1">
+              <p className="text-sm text-accent-bright mt-1 nums">
                 {credits} release credit{credits === 1 ? "" : "s"} available
               </p>
             )}
@@ -74,7 +74,7 @@ export default async function SettingsPage({
             <form action="/api/billing-portal" method="POST">
               <button
                 type="submit"
-                className="px-4 py-2.5 rounded-lg border border-border text-sm text-text-muted font-mono hover:text-text hover:border-border-bright transition-colors"
+                className="press px-4 py-2.5 rounded-lg border border-border text-sm text-text-muted hover:text-text hover:border-border-bright transition-colors"
               >
                 Manage billing →
               </button>
@@ -84,7 +84,7 @@ export default async function SettingsPage({
             <form action="/api/paypal/cancel" method="POST">
               <button
                 type="submit"
-                className="px-4 py-2.5 rounded-lg border border-border text-sm text-text-muted font-mono hover:text-text hover:border-border-bright transition-colors"
+                className="press px-4 py-2.5 rounded-lg border border-border text-sm text-text-muted hover:text-text hover:border-border-bright transition-colors"
               >
                 Cancel PayPal subscription
               </button>
@@ -96,7 +96,7 @@ export default async function SettingsPage({
       {/* Upgrade options (free tier) */}
       {tier === "free" && (
         <section className="mb-10">
-          <h2 className="font-mono text-xs text-text-dim uppercase tracking-widest mb-4">Upgrade</h2>
+          <h2 className="eyebrow mb-4">Upgrade</h2>
           <UpgradePlans />
 
           {/* One-time per-release credit */}
@@ -121,17 +121,17 @@ export default async function SettingsPage({
 
       {/* Account */}
       <section>
-        <h2 className="font-mono text-xs text-text-dim uppercase tracking-widest mb-4">Account</h2>
+        <h2 className="eyebrow mb-4">Account</h2>
         <div className="rounded-xl border border-border bg-bg-card p-6">
           <p className="text-sm text-text mb-1">
             {user?.firstName} {user?.lastName}
           </p>
-          <p className="text-sm text-text-muted mb-4 font-mono">{user?.emailAddresses[0]?.emailAddress}</p>
+          <p className="text-sm text-text-muted mb-4">{user?.emailAddresses[0]?.emailAddress}</p>
           <a
             href="https://accounts.clerk.dev/user"
             target="_blank"
             rel="noopener noreferrer"
-            className="text-sm text-accent-bright hover:underline font-mono"
+            className="text-sm text-accent-bright hover:underline"
           >
             Manage account →
           </a>

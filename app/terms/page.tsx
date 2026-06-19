@@ -9,9 +9,9 @@ export const metadata: Metadata = {
 export default function TermsPage() {
   return (
     <main className="mx-auto max-w-2xl px-6 py-16">
-      <Link href="/" className="text-sm text-accent-bright font-mono hover:underline">← MetaCheck</Link>
-      <h1 className="font-display text-4xl text-text mt-6 mb-2">Terms of Service</h1>
-      <p className="text-text-dim text-sm font-mono mb-10">Last updated: June 2026</p>
+      <Link href="/" className="text-sm text-accent-bright hover:underline">← MetaCheck</Link>
+      <h1 className="font-display text-4xl text-text mt-6 mb-2 tracking-tight">Terms of Service</h1>
+      <p className="text-text-dim text-sm mb-10">Last updated: June 2026</p>
 
       <div className="space-y-6 text-sm text-text-muted leading-relaxed">
         <p>

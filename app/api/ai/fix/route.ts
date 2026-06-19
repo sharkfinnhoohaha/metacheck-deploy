@@ -131,7 +131,11 @@ export async function POST(req: Request) {
       );
     }
   } else {
-    const globalOk = (await rateLimit("ai-anon-global", "all", { requests: 500, windowSec: 86_400 })).success;
+    // Global daily ceiling for the public demo (IP-rotation-proof) — keeps a
+    // burst of anonymous traffic from draining the Vertex credit. Past the
+    // budget, anonymous callers still get deterministic rule-based fixes.
+    const ANON_DAILY_AI_BUDGET = 200;
+    const globalOk = (await rateLimit("ai-anon-global", "all", { requests: ANON_DAILY_AI_BUDGET, windowSec: 86_400 })).success;
     if (!globalOk) return rulesResponse(); // anonymous daily AI budget spent → serve rules
   }
 

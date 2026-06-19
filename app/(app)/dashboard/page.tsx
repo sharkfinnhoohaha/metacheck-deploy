@@ -58,7 +58,7 @@ export default async function DashboardPage() {
       {/* First-run onboarding */}
       {isFirstRun && (
         <div className="mb-10 rounded-xl gradient-border bg-bg-card p-6">
-          <p className="text-xs font-mono text-accent-bright uppercase tracking-widest mb-4">Get started in 3 steps</p>
+          <p className="text-[11px] font-medium uppercase tracking-[0.12em] text-accent-bright mb-4">Get started in 3 steps</p>
           <div className="grid sm:grid-cols-3 gap-5 mb-6">
             {[
               { n: "1", t: "Add your release", d: "Type it in, paste a row, or upload your distributor CSV." },
@@ -66,7 +66,7 @@ export default async function DashboardPage() {
               { n: "3", t: "Save & export", d: "Save it to your history and export a clean, submit-ready file." },
             ].map((s) => (
               <div key={s.n} className="flex gap-3">
-                <span className="shrink-0 w-6 h-6 rounded-full bg-accent/15 text-accent-bright text-xs font-mono font-bold flex items-center justify-center">
+                <span className="shrink-0 w-6 h-6 rounded-full bg-accent/15 text-accent-bright text-xs font-semibold flex items-center justify-center">
                   {s.n}
                 </span>
                 <div>
@@ -94,8 +94,8 @@ export default async function DashboardPage() {
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-10">
         {/* Validations */}
         <div className="rounded-xl border border-border bg-bg-card p-5">
-          <p className="text-xs font-mono text-text-dim mb-3 uppercase tracking-widest">Validations this month</p>
-          <p className="text-3xl font-bold text-text font-mono">
+          <p className="eyebrow mb-3">Validations this month</p>
+          <p className="text-3xl font-bold text-text nums">
             {validations}
             {validationLimit && <span className="text-text-dim text-xl"> / {validationLimit}</span>}
           </p>
@@ -109,19 +109,19 @@ export default async function DashboardPage() {
             </div>
           )}
           {tier === "free" && validations >= 3 && (
-            <p className="mt-2 text-xs text-red font-mono">Limit reached — <Link href="/settings" className="underline">upgrade</Link></p>
+            <p className="mt-2 text-xs text-red">Limit reached — <Link href="/settings" className="underline">upgrade</Link></p>
           )}
         </div>
 
         {/* AI Calls */}
         <div className="rounded-xl border border-border bg-bg-card p-5">
-          <p className="text-xs font-mono text-text-dim mb-3 uppercase tracking-widest">AI fixes used</p>
-          <p className="text-3xl font-bold text-text font-mono">
+          <p className="eyebrow mb-3">AI fixes used</p>
+          <p className="text-3xl font-bold text-text nums">
             {aiCalls}
             {aiLimit > 0 && <span className="text-text-dim text-xl"> / {aiLimit}</span>}
           </p>
           {tier === "free" && (
-            <p className="mt-2 text-xs text-text-dim font-mono">
+            <p className="mt-2 text-xs text-text-dim">
               <Link href="/settings" className="text-accent-bright hover:underline">Upgrade to Pro</Link> for AI fixes
             </p>
           )}
@@ -129,19 +129,19 @@ export default async function DashboardPage() {
 
         {/* Plan */}
         <div className="rounded-xl border border-border bg-bg-card p-5">
-          <p className="text-xs font-mono text-text-dim mb-3 uppercase tracking-widest">Current plan</p>
-          <p className={`text-2xl font-bold font-mono capitalize ${tier === "free" ? "text-text-muted" : "text-accent-bright"}`}>
+          <p className="eyebrow mb-3">Current plan</p>
+          <p className={`text-2xl font-bold capitalize ${tier === "free" ? "text-text-muted" : "text-accent-bright"}`}>
             {tier}
           </p>
           {credits > 0 && (
-            <p className="mt-2 text-xs text-accent-bright font-mono">
+            <p className="mt-2 text-xs text-accent-bright nums">
               {credits} release credit{credits === 1 ? "" : "s"}
             </p>
           )}
           {tier === "free" && (
             <Link
               href="/settings"
-              className="mt-3 inline-block text-xs px-3 py-1.5 rounded-lg bg-accent/10 text-accent-bright border border-accent/20 font-mono hover:bg-accent/20 transition-colors"
+              className="press mt-3 inline-block text-xs px-3 py-1.5 rounded-lg bg-accent/10 text-accent-bright border border-accent/20 hover:bg-accent/20 transition-colors"
             >
               Upgrade →
             </Link>
@@ -165,8 +165,8 @@ export default async function DashboardPage() {
       {/* Recent releases */}
       <div>
         <div className="flex items-center justify-between mb-4">
-          <h2 className="font-mono text-sm text-text-dim uppercase tracking-widest">Recent Releases</h2>
-          <Link href="/history" className="text-xs text-accent-bright hover:underline font-mono">
+          <h2 className="eyebrow">Recent releases</h2>
+          <Link href="/history" className="text-xs text-accent-bright hover:underline">
             View all →
           </Link>
         </div>
@@ -195,16 +195,16 @@ export default async function DashboardPage() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-text truncate">{r.title}</p>
-                  <p className="text-xs text-text-muted font-mono truncate">
+                  <p className="text-xs text-text-muted truncate nums">
                     {r.artist} · {r.track_count} track{r.track_count !== 1 ? "s" : ""}
                   </p>
                 </div>
                 <div className="text-right shrink-0">
-                  <p className="text-xs font-mono text-text-dim">
+                  <p className="text-xs text-text-dim nums">
                     {new Date(r.created_at).toLocaleDateString()}
                   </p>
                   {r.critical_count > 0 && (
-                    <p className="text-xs text-red font-mono">{r.critical_count} critical</p>
+                    <p className="text-xs text-red nums">{r.critical_count} critical</p>
                   )}
                 </div>
               </Link>

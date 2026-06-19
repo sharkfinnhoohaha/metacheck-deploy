@@ -202,7 +202,7 @@ export function LiveDemo() {
                   <p className="font-semibold text-text">
                     {g!.letter === "A" ? "Release ready!" : g!.letter === "B" ? "Almost there" : g!.letter === "C" ? "Needs work" : "Major issues found"}
                   </p>
-                  <p className="text-xs font-mono text-text-dim">
+                  <p className="text-xs text-text-dim nums">
                     {criticals.length} critical · {warnings.length} warnings · {suggestions.length} suggestions
                   </p>
                 </div>
@@ -219,7 +219,7 @@ export function LiveDemo() {
             {/* AI Fixes highlight */}
             {aiFixes.length > 0 && (
               <div className="mb-4 space-y-2">
-                <p className="text-[10px] font-mono font-bold text-accent-bright uppercase tracking-wider">AI Suggestions</p>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-accent-bright">AI suggestions</p>
                 {aiFixes.map((fix, i) => (
                   <div key={i} className="p-3 rounded-xl border border-accent/20 bg-accent/5 flex items-center justify-between gap-3">
                     <div className="min-w-0">

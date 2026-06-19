@@ -17,13 +17,13 @@ export function ReleaseActions({
     <div className="flex flex-col gap-2 shrink-0">
       <button
         onClick={() => exportCsv(tracks, `${releaseTitle}-clean.csv`)}
-        className="px-4 py-2 rounded-lg bg-surface border border-border text-xs text-text-muted font-mono hover:text-text transition-colors"
+        className="press px-4 py-2 rounded-lg bg-surface border border-border text-xs text-text-muted hover:text-text transition-colors"
       >
         Export CSV
       </button>
       <button
         onClick={() => exportPdf(tracks, results, `${releaseTitle}-report.pdf`)}
-        className="px-4 py-2 rounded-lg bg-surface border border-border text-xs text-text-muted font-mono hover:text-text transition-colors"
+        className="press px-4 py-2 rounded-lg bg-surface border border-border text-xs text-text-muted hover:text-text transition-colors"
       >
         Export PDF
       </button>
