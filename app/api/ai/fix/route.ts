@@ -3,7 +3,7 @@ import { z } from "zod";
 import { trackUsage, canUseAI } from "@/lib/auth/index";
 import { AI_FIX_SYSTEM_PROMPT } from "@/lib/ai/prompts";
 import { generateText, isAiConfigured } from "@/lib/ai/gemini";
-import { rateLimit, clientIp } from "@/lib/ratelimit";
+import { rateLimit, clientIp, isRateLimitConfigured } from "@/lib/ratelimit";
 
 const RequestSchema = z.object({
   // Bounded to a realistic release size so an anonymous caller can't post a
@@ -109,9 +109,14 @@ export async function POST(req: Request) {
 
   const { tracks, results } = parsed.data;
 
-  // No AI configured → serve deterministic rule-based fixes (powers the demo).
-  // Not charged as an AI call because no model was invoked.
-  if (!isAiConfigured()) {
+  // Decide whether we may call the paid model. Serve deterministic rule-based
+  // fixes (which power the public demo) when:
+  //  - no AI is configured, OR
+  //  - the caller is anonymous AND no rate limiter is configured — otherwise
+  //    that's an unauthenticated, unthrottled path that could drain the key, so
+  //    we fail CLOSED to rules rather than relying on the no-op rate limiter.
+  const canCallModel = isAiConfigured() && (Boolean(userId) || isRateLimitConfigured());
+  if (!canCallModel) {
     return Response.json({
       data: { fixes: buildRuleFallback(tracks, results), source: "rules" },
       error: null,

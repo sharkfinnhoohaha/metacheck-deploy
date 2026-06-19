@@ -11,6 +11,13 @@ function getRedis(): Redis | null {
   return _redis;
 }
 
+/** Whether a real rate limiter is configured (Upstash creds present). Callers
+ *  protecting an unauthenticated, cost-bearing path (the public AI route) should
+ *  fail CLOSED when this is false rather than relying on the no-op fallback. */
+export function isRateLimitConfigured(): boolean {
+  return getRedis() !== null;
+}
+
 const _limiters = new Map<string, Ratelimit>();
 
 function getLimiter(name: string, requests: number, windowSec: number): Ratelimit | null {
@@ -53,8 +60,15 @@ export async function rateLimit(
   }
 }
 
-/** Best-effort client IP from proxy headers (Vercel sets x-forwarded-for). */
+/**
+ * Client IP for rate-limit keying. Prefer `x-real-ip`, which Vercel's edge sets
+ * to the true connecting IP — the leftmost `x-forwarded-for` entry is
+ * client-supplied and can be rotated to mint fresh buckets, so it's only a
+ * last-resort fallback.
+ */
 export function clientIp(req: Request): string {
+  const realIp = req.headers.get("x-real-ip");
+  if (realIp) return realIp.trim();
   const xff = req.headers.get("x-forwarded-for");
-  return (xff?.split(",")[0] || req.headers.get("x-real-ip") || "anonymous").trim();
+  return (xff?.split(",")[0] || "anonymous").trim();
 }

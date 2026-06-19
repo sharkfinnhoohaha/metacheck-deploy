@@ -1,7 +1,7 @@
 import { auth, currentUser } from "@clerk/nextjs/server";
 import { z } from "zod";
 import { supabaseAdmin } from "@/lib/supabase/admin";
-import { canValidate, consumeCredit, ensureUser, trackUsage } from "@/lib/auth";
+import { addCredits, canValidate, consumeCredit, ensureUser, trackUsage } from "@/lib/auth";
 
 const ReleaseSchema = z.object({
   title: z.string().min(1).max(500),
@@ -24,7 +24,23 @@ export async function POST(req: Request) {
   const user = await currentUser();
   await ensureUser(userId, user?.emailAddresses[0]?.emailAddress ?? "", user?.firstName ?? undefined);
 
+  // Validate the payload BEFORE touching quota/credits — a malformed or oversized
+  // body must never cost the user a paid release credit.
+  let body: unknown;
+  try {
+    body = await req.json();
+  } catch {
+    return Response.json({ data: null, error: "Invalid JSON" }, { status: 400 });
+  }
+
+  const parsed = ReleaseSchema.safeParse(body);
+  if (!parsed.success) {
+    return Response.json({ data: null, error: "Invalid release payload." }, { status: 400 });
+  }
+
   // Gate: within the monthly allowance, OR spend a one-time release credit.
+  // The credit is consumed only after validation passed; if the insert then
+  // fails we refund it, so a credit is never lost without a saved release.
   const allowedByQuota = await canValidate(userId);
   let usedCredit = false;
   if (!allowedByQuota) {
@@ -41,18 +57,6 @@ export async function POST(req: Request) {
     }
   }
 
-  let body: unknown;
-  try {
-    body = await req.json();
-  } catch {
-    return Response.json({ data: null, error: "Invalid JSON" }, { status: 400 });
-  }
-
-  const parsed = ReleaseSchema.safeParse(body);
-  if (!parsed.success) {
-    return Response.json({ data: null, error: "Invalid release payload." }, { status: 400 });
-  }
-
   const { data, error } = await supabaseAdmin
     .from("releases")
     .insert({ ...parsed.data, clerk_id: userId })
@@ -61,6 +65,7 @@ export async function POST(req: Request) {
 
   if (error) {
     console.error("release insert error:", error);
+    if (usedCredit) await addCredits(userId, 1); // refund — the save didn't happen
     return Response.json({ data: null, error: "Couldn't save your release. Please try again." }, { status: 500 });
   }
 
