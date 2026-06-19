@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { UserButton } from "@clerk/nextjs";
-import { IconGrid, IconCheckShield, IconClock, IconSliders } from "@/app/_components/icons";
+import { IconGrid, IconCheckShield, IconClock, IconSliders, IconBolt } from "@/app/_components/icons";
 
 const NAV = [
   { href: "/dashboard", label: "Dashboard", Icon: IconGrid },
@@ -12,8 +12,9 @@ const NAV = [
   { href: "/settings", label: "Settings", Icon: IconSliders },
 ];
 
-export function Sidebar() {
+export function Sidebar({ isAdmin = false }: { isAdmin?: boolean }) {
   const pathname = usePathname();
+  const nav = isAdmin ? [...NAV, { href: "/admin", label: "Admin", Icon: IconBolt }] : NAV;
   return (
     <aside className="fixed left-0 top-0 h-screen w-60 flex flex-col border-r border-border bg-bg-elevated/70 backdrop-blur-xl z-30">
       {/* Logo */}
@@ -26,7 +27,7 @@ export function Sidebar() {
 
       {/* Nav links */}
       <nav className="flex-1 px-3 py-4 space-y-1">
-        {NAV.map(({ href, label, Icon }) => {
+        {nav.map(({ href, label, Icon }) => {
           const active = pathname === href || pathname.startsWith(href + "/");
           return (
             <Link

@@ -754,6 +754,10 @@ export default function ValidatePage() {
     setTracks(updated);
     setFixedTracks(updated);
     setAiFixes((prev) => prev?.filter((f) => f !== fix) ?? null);
+    // Re-grade so the grade card, counts and issue list reflect the applied fix
+    // (one AI fix can clear several related rules — re-running the engine is the
+    // robust way to keep the results in sync).
+    setResults(validateRelease(updated, getProfile(profileId)).map((r) => ({ ...r, _fixed: false })));
   };
 
   // Save to history

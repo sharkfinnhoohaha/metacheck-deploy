@@ -1,7 +1,9 @@
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { verifyWebhookSignature, PAYPAL_PLAN_TO_TIER } from "@/lib/paypal";
+import { markWebhookProcessed, unmarkWebhook } from "@/lib/webhooks";
 
 type PayPalWebhookEvent = {
+  id?: string;
   event_type: string;
   resource?: { id?: string; custom_id?: string; plan_id?: string };
 };
@@ -40,6 +42,11 @@ export async function POST(req: Request) {
     event = JSON.parse(rawBody) as PayPalWebhookEvent;
   } catch {
     return Response.json({ error: "Invalid JSON" }, { status: 400 });
+  }
+
+  // Idempotency: skip duplicate/replayed deliveries.
+  if (event.id && !(await markWebhookProcessed("paypal", event.id))) {
+    return Response.json({ received: true, duplicate: true });
   }
 
   const resource = event.resource ?? {};
@@ -95,6 +102,7 @@ export async function POST(req: Request) {
     }
   } catch (err) {
     console.error("PayPal webhook handler error:", err);
+    if (event.id) await unmarkWebhook(event.id); // let PayPal retry
     return Response.json({ error: "Webhook handler failed" }, { status: 500 });
   }
 

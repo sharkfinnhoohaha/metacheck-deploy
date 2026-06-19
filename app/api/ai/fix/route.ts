@@ -1,6 +1,6 @@
 import { auth } from "@clerk/nextjs/server";
 import { z } from "zod";
-import { trackUsage, canUseAI } from "@/lib/auth/index";
+import { trackUsage, reserveAiCall, refundAiCall } from "@/lib/auth/index";
 import { AI_FIX_SYSTEM_PROMPT } from "@/lib/ai/prompts";
 import { generateText, isAiConfigured } from "@/lib/ai/gemini";
 import { rateLimit, clientIp, isRateLimitConfigured } from "@/lib/ratelimit";
@@ -86,32 +86,6 @@ export async function POST(req: Request) {
     );
   }
 
-  // Authenticated users must be on a paid tier with AI quota remaining.
-  // Anonymous requests are intentionally allowed so the public marketing demo
-  // keeps working (it falls back to rule-based fixes when no key is configured).
-  if (userId) {
-    let allowed = false;
-    try {
-      allowed = await canUseAI(userId);
-    } catch (err) {
-      console.error("AI gating check failed:", err);
-      return Response.json(
-        { data: null, error: "Couldn't verify your subscription right now. Please try again." },
-        { status: 503 }
-      );
-    }
-    if (!allowed) {
-      return Response.json(
-        {
-          data: null,
-          error: "You've used your free AI fix this month. Upgrade to Pro for unlimited AI-powered fixes.",
-          upgrade: true,
-        },
-        { status: 403 }
-      );
-    }
-  }
-
   let body: unknown;
   try {
     body = await req.json();
@@ -126,18 +100,52 @@ export async function POST(req: Request) {
 
   const { tracks, results } = parsed.data;
 
-  // Decide whether we may call the paid model. Serve deterministic rule-based
-  // fixes (which power the public demo) when:
-  //  - no AI is configured, OR
-  //  - the caller is anonymous AND no rate limiter is configured — otherwise
-  //    that's an unauthenticated, unthrottled path that could drain the key, so
-  //    we fail CLOSED to rules rather than relying on the no-op rate limiter.
-  const canCallModel = isAiConfigured() && (Boolean(userId) || isRateLimitConfigured());
-  if (!canCallModel) {
-    return Response.json({
+  const rulesResponse = () =>
+    Response.json({
       data: { fixes: buildRuleFallback(tracks, results), impact: buildImpact(results), source: "rules" },
       error: null,
     });
+
+  // Reserve quota for authenticated users ATOMICALLY (closes the read-then-act
+  // race on the free taste); for anonymous demo callers, enforce a global daily
+  // ceiling so rotated IPs can't drain the Vertex credit past a fixed budget.
+  let reservation: { granted: boolean; counted: boolean } | null = null;
+  if (userId) {
+    try {
+      reservation = await reserveAiCall(userId);
+    } catch (err) {
+      console.error("AI gating check failed:", err);
+      return Response.json(
+        { data: null, error: "Couldn't verify your subscription right now. Please try again." },
+        { status: 503 }
+      );
+    }
+    if (!reservation.granted) {
+      return Response.json(
+        {
+          data: null,
+          error: "You've used your free AI fix this month. Upgrade to Pro for unlimited AI-powered fixes.",
+          upgrade: true,
+        },
+        { status: 403 }
+      );
+    }
+  } else {
+    const globalOk = (await rateLimit("ai-anon-global", "all", { requests: 500, windowSec: 86_400 })).success;
+    if (!globalOk) return rulesResponse(); // anonymous daily AI budget spent → serve rules
+  }
+
+  // If we reserved a (counted) call but end up serving rules, refund it.
+  const refundIfReserved = async () => {
+    if (userId && reservation?.counted) await refundAiCall(userId);
+  };
+
+  // Serve deterministic rules when no AI is configured, or for an anonymous caller
+  // with no rate limiter (fail CLOSED rather than rely on the no-op limiter).
+  const canCallModel = isAiConfigured() && (Boolean(userId) || isRateLimitConfigured());
+  if (!canCallModel) {
+    await refundIfReserved();
+    return rulesResponse();
   }
 
   try {
@@ -157,15 +165,13 @@ export async function POST(req: Request) {
       impact = typeof json.impact === "string" && json.impact.trim() ? json.impact.trim() : buildImpact(results);
     } catch {
       console.error("Malformed AI response:", text.slice(0, 500));
-      // Don't bill a failed call — fall back to rules instead of erroring.
-      return Response.json({
-        data: { fixes: buildRuleFallback(tracks, results), impact: buildImpact(results), source: "rules" },
-        error: null,
-      });
+      // Served rules, not AI → refund the reserved call so it isn't billed.
+      await refundIfReserved();
+      return rulesResponse();
     }
 
-    // Charge usage only after a successful AI generation (never on fallback).
-    if (userId) {
+    // Legacy path only (RPC absent → reservation didn't count): charge now.
+    if (userId && reservation && !reservation.counted) {
       try {
         await trackUsage(userId, "ai_call");
       } catch (err) {
@@ -177,9 +183,7 @@ export async function POST(req: Request) {
   } catch (err) {
     console.error("Gemini API error:", err instanceof Error ? err.message : err);
     // Model/credentials failure → deterministic fallback so the user still gets value.
-    return Response.json({
-      data: { fixes: buildRuleFallback(tracks, results), impact: buildImpact(results), source: "rules" },
-      error: null,
-    });
+    await refundIfReserved();
+    return rulesResponse();
   }
 }

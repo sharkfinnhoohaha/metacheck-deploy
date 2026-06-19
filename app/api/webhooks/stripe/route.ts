@@ -2,6 +2,7 @@ import Stripe from "stripe";
 import { stripe } from "@/lib/stripe";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { addCredits } from "@/lib/auth";
+import { markWebhookProcessed, unmarkWebhook } from "@/lib/webhooks";
 
 // Maps every configured Stripe price (monthly + annual) → app tier.
 const PRICE_TO_TIER: Record<string, "pro" | "team"> = {
@@ -30,6 +31,11 @@ export async function POST(req: Request) {
   } catch (err) {
     const message = err instanceof Error ? err.message : "Webhook verification failed";
     return Response.json({ error: message }, { status: 400 });
+  }
+
+  // Idempotency: skip a replayed/duplicate delivery so credit grants happen once.
+  if (!(await markWebhookProcessed("stripe", event.id))) {
+    return Response.json({ received: true, duplicate: true });
   }
 
   try {
@@ -78,24 +84,32 @@ export async function POST(req: Request) {
           console.error("Stripe webhook: unmapped price on update, skipping", { priceId });
           break;
         }
-        await supabaseAdmin
-          .from("users")
-          .update({ tier, stripe_subscription_id: subscription.id })
-          .eq("stripe_customer_id", subscription.customer as string);
+        {
+          const { data } = await supabaseAdmin
+            .from("users")
+            .update({ tier, stripe_subscription_id: subscription.id })
+            .eq("stripe_customer_id", subscription.customer as string)
+            .select("clerk_id");
+          if (!data?.length) console.error("Stripe webhook: no user matched customer on update", { customer: subscription.customer });
+        }
         break;
       }
 
       case "customer.subscription.deleted": {
         const subscription = event.data.object as Stripe.Subscription;
-        await supabaseAdmin
+        const { data } = await supabaseAdmin
           .from("users")
           .update({ tier: "free", stripe_subscription_id: null })
-          .eq("stripe_customer_id", subscription.customer as string);
+          .eq("stripe_customer_id", subscription.customer as string)
+          .select("clerk_id");
+        if (!data?.length) console.error("Stripe webhook: no user matched customer on delete", { customer: subscription.customer });
         break;
       }
     }
   } catch (err) {
     console.error("Stripe webhook handler error:", err);
+    // Let Stripe retry: undo the idempotency mark so the retry isn't skipped.
+    await unmarkWebhook(event.id);
     return Response.json({ error: "Webhook handler failed" }, { status: 500 });
   }
 

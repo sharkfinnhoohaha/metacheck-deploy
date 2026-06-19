@@ -48,7 +48,8 @@ export default async function HistoryPage() {
     .from("releases")
     .select("id, title, artist, grade, track_count, created_at, critical_count, warning_count, suggestion_count")
     .eq("clerk_id", userId!)
-    .order("created_at", { ascending: false });
+    .order("created_at", { ascending: false })
+    .limit(100);
 
   return (
     <div className="max-w-4xl mx-auto px-6 py-10">

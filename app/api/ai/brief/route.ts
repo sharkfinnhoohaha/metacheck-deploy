@@ -1,6 +1,6 @@
 import { auth } from "@clerk/nextjs/server";
 import { z } from "zod";
-import { trackUsage, canUseAI } from "@/lib/auth/index";
+import { trackUsage, reserveAiCall, refundAiCall } from "@/lib/auth/index";
 import { AI_BRIEF_SYSTEM_PROMPT } from "@/lib/ai/prompts";
 import { generateText, isAiConfigured } from "@/lib/ai/gemini";
 import { rateLimit, clientIp, isRateLimitConfigured } from "@/lib/ratelimit";
@@ -71,29 +71,6 @@ export async function POST(req: Request) {
     );
   }
 
-  if (userId) {
-    let allowed = false;
-    try {
-      allowed = await canUseAI(userId);
-    } catch (err) {
-      console.error("AI gating check failed:", err);
-      return Response.json(
-        { data: null, error: "Couldn't verify your subscription right now. Please try again." },
-        { status: 503 }
-      );
-    }
-    if (!allowed) {
-      return Response.json(
-        {
-          data: null,
-          error: "You've used your free AI run this month. Upgrade to Pro for unlimited AI briefs.",
-          upgrade: true,
-        },
-        { status: 403 }
-      );
-    }
-  }
-
   let body: unknown;
   try {
     body = await req.json();
@@ -108,12 +85,44 @@ export async function POST(req: Request) {
 
   const { tracks, results, distributor } = parsed.data;
 
-  const canCallModel = isAiConfigured() && (Boolean(userId) || isRateLimitConfigured());
-  if (!canCallModel) {
-    return Response.json({
+  const rulesResponse = () =>
+    Response.json({
       data: { brief: buildBriefFallback(results, distributor), source: "rules" },
       error: null,
     });
+
+  // Atomically reserve the AI call for authenticated users (closes the free-taste race).
+  let reservation: { granted: boolean; counted: boolean } | null = null;
+  if (userId) {
+    try {
+      reservation = await reserveAiCall(userId);
+    } catch (err) {
+      console.error("AI gating check failed:", err);
+      return Response.json(
+        { data: null, error: "Couldn't verify your subscription right now. Please try again." },
+        { status: 503 }
+      );
+    }
+    if (!reservation.granted) {
+      return Response.json(
+        {
+          data: null,
+          error: "You've used your free AI run this month. Upgrade to Pro for unlimited AI briefs.",
+          upgrade: true,
+        },
+        { status: 403 }
+      );
+    }
+  }
+
+  const refundIfReserved = async () => {
+    if (userId && reservation?.counted) await refundAiCall(userId);
+  };
+
+  const canCallModel = isAiConfigured() && (Boolean(userId) || isRateLimitConfigured());
+  if (!canCallModel) {
+    await refundIfReserved();
+    return rulesResponse();
   }
 
   try {
@@ -128,10 +137,8 @@ export async function POST(req: Request) {
       parsed = JSON.parse(cleanText);
     } catch {
       console.error("Malformed AI brief:", text.slice(0, 500));
-      return Response.json({
-        data: { brief: buildBriefFallback(results, distributor), source: "rules" },
-        error: null,
-      });
+      await refundIfReserved();
+      return rulesResponse();
     }
 
     // An LLM can emit valid JSON of the WRONG shape (missing verdict, exposure as a
@@ -140,10 +147,8 @@ export async function POST(req: Request) {
     const b = parsed as Record<string, unknown>;
     if (!b || typeof b !== "object" || typeof b.verdict !== "string") {
       console.error("Malformed AI brief shape:", text.slice(0, 500));
-      return Response.json({
-        data: { brief: buildBriefFallback(results, distributor), source: "rules" },
-        error: null,
-      });
+      await refundIfReserved();
+      return rulesResponse();
     }
     const brief = {
       verdict: b.verdict,
@@ -160,7 +165,8 @@ export async function POST(req: Request) {
       fixOrder: Array.isArray(b.fixOrder) ? (b.fixOrder as unknown[]).map((x) => String(x)) : [],
     };
 
-    if (userId) {
+    // Legacy path only (RPC absent → reservation didn't count): charge now.
+    if (userId && reservation && !reservation.counted) {
       try {
         await trackUsage(userId, "ai_call");
       } catch (err) {
@@ -171,9 +177,7 @@ export async function POST(req: Request) {
     return Response.json({ data: { brief, source: "ai" }, error: null });
   } catch (err) {
     console.error("Gemini brief error:", err instanceof Error ? err.message : err);
-    return Response.json({
-      data: { brief: buildBriefFallback(results, distributor), source: "rules" },
-      error: null,
-    });
+    await refundIfReserved();
+    return rulesResponse();
   }
 }

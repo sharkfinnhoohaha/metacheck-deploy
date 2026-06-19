@@ -89,6 +89,48 @@ export async function canUseAI(clerkId: string): Promise<boolean> {
   return ai_calls < limit;
 }
 
+function effectiveAiLimit(tier: Tier): number {
+  return MONTHLY_AI_LIMITS[tier] === 0 ? FREE_AI_TASTE : MONTHLY_AI_LIMITS[tier];
+}
+
+/**
+ * Atomically reserve one monthly AI call (closes the read-then-act race on the
+ * free taste). Returns:
+ *  - `granted`: whether the user may make an AI call right now.
+ *  - `counted`: whether this reservation already incremented the usage counter
+ *    (true via the atomic RPC). When false (legacy fallback, pre-004 migration),
+ *    the caller must still `trackUsage("ai_call")` on a successful model call.
+ * Falls back to the old read-then-check when the `consume_ai_call` RPC is absent,
+ * so deploying this before the 004 migration is safe (just not yet race-proof).
+ */
+export async function reserveAiCall(
+  clerkId: string
+): Promise<{ granted: boolean; counted: boolean }> {
+  const tier = await getUserTier(clerkId);
+  const limit = effectiveAiLimit(tier);
+  const month = currentMonth();
+  const { data, error } = await supabaseAdmin.rpc("consume_ai_call", {
+    p_clerk_id: clerkId,
+    p_month: month,
+    p_limit: limit,
+  });
+  if (error) {
+    // RPC not present yet (migration 004 not applied) → legacy read-then-check.
+    const { ai_calls } = await getUsage(clerkId);
+    return { granted: ai_calls < limit, counted: false };
+  }
+  return { granted: data !== null && data !== undefined, counted: true };
+}
+
+/** Refund a reserved AI call when the model fell back to rules (no real AI served). */
+export async function refundAiCall(clerkId: string): Promise<void> {
+  try {
+    await supabaseAdmin.rpc("refund_ai_call", { p_clerk_id: clerkId, p_month: currentMonth() });
+  } catch (err) {
+    console.warn("refund_ai_call failed:", err);
+  }
+}
+
 /** AI allowance snapshot for the current month, for UI badges and upgrade prompts. */
 export async function getAiAllowance(
   clerkId: string
