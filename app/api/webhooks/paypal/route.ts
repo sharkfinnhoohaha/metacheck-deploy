@@ -6,6 +6,20 @@ type PayPalWebhookEvent = {
   resource?: { id?: string; custom_id?: string; plan_id?: string };
 };
 
+// Downgrade a user to free. `clearId` drops the subscription handle (terminal
+// cancellation/expiry); a suspension keeps it so the user can still cancel and
+// a later reactivation can restore them.
+async function downgrade(
+  { subscriptionId, clerkId, clearId }: { subscriptionId?: string; clerkId?: string; clearId: boolean }
+) {
+  const patch = clearId ? { tier: "free", paypal_subscription_id: null } : { tier: "free" };
+  if (subscriptionId) {
+    await supabaseAdmin.from("users").update(patch).eq("paypal_subscription_id", subscriptionId);
+  } else if (clerkId) {
+    await supabaseAdmin.from("users").update(patch).eq("clerk_id", clerkId);
+  }
+}
+
 export async function POST(req: Request) {
   const rawBody = await req.text();
   const headers: Record<string, string> = {
@@ -37,7 +51,16 @@ export async function POST(req: Request) {
     switch (event.event_type) {
       case "BILLING.SUBSCRIPTION.ACTIVATED":
       case "BILLING.SUBSCRIPTION.UPDATED": {
-        const tier = (planId && PAYPAL_PLAN_TO_TIER[planId]) || "pro";
+        // Only map plans we actually recognize. Defaulting an unmapped plan to
+        // "pro" could silently downgrade a Label/team subscriber if a plan ID
+        // is mis-set, so skip and surface it for the operator instead.
+        const tier = planId ? PAYPAL_PLAN_TO_TIER[planId] : undefined;
+        if (!tier) {
+          console.error("PayPal webhook: unmapped plan_id, skipping tier update", {
+            planId, subscriptionId, type: event.event_type,
+          });
+          break;
+        }
         if (clerkId) {
           await supabaseAdmin
             .from("users")
@@ -48,24 +71,25 @@ export async function POST(req: Request) {
             .from("users")
             .update({ tier })
             .eq("paypal_subscription_id", subscriptionId);
+        } else {
+          console.error("PayPal webhook: no custom_id or subscription id on event", {
+            type: event.event_type,
+          });
         }
         break;
       }
 
       case "BILLING.SUBSCRIPTION.CANCELLED":
-      case "BILLING.SUBSCRIPTION.EXPIRED":
+      case "BILLING.SUBSCRIPTION.EXPIRED": {
+        // Terminal — revoke access and drop the subscription handle.
+        await downgrade({ subscriptionId, clerkId, clearId: true });
+        break;
+      }
+
       case "BILLING.SUBSCRIPTION.SUSPENDED": {
-        if (subscriptionId) {
-          await supabaseAdmin
-            .from("users")
-            .update({ tier: "free", paypal_subscription_id: null })
-            .eq("paypal_subscription_id", subscriptionId);
-        } else if (clerkId) {
-          await supabaseAdmin
-            .from("users")
-            .update({ tier: "free", paypal_subscription_id: null })
-            .eq("clerk_id", clerkId);
-        }
+        // Recoverable hold (e.g. failed-payment retry) — revoke paid access but
+        // keep the subscription id so the user can still cancel/reactivate.
+        await downgrade({ subscriptionId, clerkId, clearId: false });
         break;
       }
     }
