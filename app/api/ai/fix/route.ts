@@ -97,17 +97,34 @@ export async function POST(req: Request) {
   } catch (err) {
     console.error("Gemini API error:", err);
     
-    // FALLBACK: For the demo, if the AI service is busy or fails, return simulated fixes 
+    // FALLBACK: For the demo, if the AI service is busy or fails, return simulated fixes
     // to ensure the user gets an "immediate accurate response" as requested.
+    // `field` must be a TrackMeta key so the client can apply it — the engine's
+    // display labels ("Release Date", "Featured Artists") don't lowercase to a
+    // valid key, so map them explicitly and skip anything we can't resolve.
+    const FIELD_LABEL_TO_KEY: Record<string, string> = {
+      "isrc": "isrc", "title": "title", "artist": "artist",
+      "featured artists": "featuredArtists", "album": "album", "upc": "upc",
+      "genre": "genre", "release date": "releaseDate", "songwriters": "songwriters",
+      "producers": "producers", "composers": "composers", "copyright": "copyright",
+      "explicit": "explicit", "language": "language", "label": "label",
+      "duration": "duration", "track number": "trackNumber",
+    };
     const fallbackFixes = results
       .filter(r => r.fixable)
-      .map((r, i) => ({
-        trackIndex: r.trackIndex ?? 0,
-        field: r.field.toLowerCase(),
-        original: tracks[r.trackIndex ?? 0]?.[r.field.toLowerCase()] || "",
-        fixed: r.suggestion || "Fixed value",
-        reason: "Auto-corrected based on validation rules (Demo Fallback)"
-      }));
+      .map((r) => {
+        const key = FIELD_LABEL_TO_KEY[r.field.toLowerCase().trim()];
+        if (!key) return null;
+        const idx = r.trackIndex ?? 0;
+        return {
+          trackIndex: idx,
+          field: key,
+          original: tracks[idx]?.[key] || "",
+          fixed: r.suggestion || "Fixed value",
+          reason: "Auto-corrected based on validation rules (Demo Fallback)",
+        };
+      })
+      .filter((f): f is NonNullable<typeof f> => f !== null);
 
     if (fallbackFixes.length > 0) {
       return Response.json({ data: { fixes: fallbackFixes }, error: null });

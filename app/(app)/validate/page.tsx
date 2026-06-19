@@ -319,9 +319,12 @@ export default function ValidatePage() {
     }
   };
 
-  // Apply AI fix
+  // Apply AI fix. `fix.field` may arrive as a TrackMeta key ("releaseDate")
+  // from a well-formed model response, or as a human label ("Release Date" →
+  // "release date") from the rule-based fallback — resolveFieldKey handles
+  // both so multi-word fields don't silently write to a junk property.
   const applyAiFix = (fix: import("@/lib/validation/types").AiFix) => {
-    const fieldKey = fix.field as keyof TrackMeta;
+    const fieldKey = resolveFieldKey(fix.field) ?? (fix.field as keyof TrackMeta);
     const updated = tracks.map((t, i) => (i === fix.trackIndex ? { ...t, [fieldKey]: fix.fixed } : t));
     setTracks(updated);
     setFixedTracks(updated);
@@ -333,15 +336,18 @@ export default function ValidatePage() {
     if (!results) return;
     setSaving(true);
     try {
-      const grade = getGrade(results);
+      // Save the post-fix state: grade and counts reflect issues still
+      // outstanding, not ones the user already resolved before saving.
+      const active = results.filter((r) => !r._fixed);
+      const grade = getGrade(active);
       const release = {
         title: tracks[0]?.album || tracks[0]?.title || "Untitled Release",
         artist: tracks[0]?.artist || "",
         track_count: tracks.length,
         grade: grade.letter,
-        critical_count: results.filter((r) => r.severity === "critical").length,
-        warning_count: results.filter((r) => r.severity === "warning").length,
-        suggestion_count: results.filter((r) => r.severity === "suggestion").length,
+        critical_count: active.filter((r) => r.severity === "critical").length,
+        warning_count: active.filter((r) => r.severity === "warning").length,
+        suggestion_count: active.filter((r) => r.severity === "suggestion").length,
         tracks,
         results,
       };
@@ -360,10 +366,15 @@ export default function ValidatePage() {
     }
   };
 
-  const grade = results ? getGrade(results) : null;
-  const criticals = results?.filter((r) => r.severity === "critical") ?? [];
-  const warnings = results?.filter((r) => r.severity === "warning") ?? [];
-  const suggestions = results?.filter((r) => r.severity === "suggestion") ?? [];
+  // Grade and summary counts must reflect issues that are still outstanding —
+  // i.e. exclude anything the user has already applied a fix for. Otherwise the
+  // grade card stays stuck on the original (e.g. "F · 5 critical") even after
+  // "Auto-fix All", and the same stale numbers get written to history on save.
+  const activeResults = results?.filter((r) => !r._fixed) ?? [];
+  const grade = results ? getGrade(activeResults) : null;
+  const criticals = activeResults.filter((r) => r.severity === "critical");
+  const warnings = activeResults.filter((r) => r.severity === "warning");
+  const suggestions = activeResults.filter((r) => r.severity === "suggestion");
   const fixableCount = results?.filter((r) => r.fixable && !r._fixed).length ?? 0;
 
   return (

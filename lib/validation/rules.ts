@@ -130,11 +130,15 @@ export function validateTrack(track: TrackMeta, trackIndex?: number): Validation
   }
 
   // ── Release date ──────────────────────────────────────────────────
-  if (track.releaseDate) {
+  if (track.releaseDate?.trim()) {
     const releaseDate = new Date(track.releaseDate);
     const now = new Date();
     const sevenDaysOut = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
-    if (releaseDate < now) {
+    if (isNaN(releaseDate.getTime())) {
+      // An unparseable date silently passed every comparison below, so a typo
+      // like "Marhc 2026" produced zero feedback. Flag it instead.
+      a("date_invalid", "Release Date", "critical", `"${track.releaseDate}" is not a valid date — use YYYY-MM-DD.`);
+    } else if (releaseDate < now) {
       a("date_past", "Release Date", "suggestion", "Release date is in the past — this may cause issues with retrospective distribution.");
     } else if (releaseDate < sevenDaysOut) {
       a("date_too_soon", "Release Date", "warning", "Release date is fewer than 7 days away — Spotify editorial pitch requires 7+ days lead time.");
