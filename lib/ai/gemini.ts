@@ -48,13 +48,20 @@ function getClient(): GoogleGenAI | null {
         token_url: "https://sts.googleapis.com/v1/token",
         service_account_impersonation_url: `https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/${wifSaEmail}:generateAccessToken`,
         subject_token_supplier: {
-          // Vercel injects a fresh OIDC token per invocation.
+          // Vercel issues a fresh, per-request OIDC token. At runtime it is NOT in
+          // process.env — it must be read via @vercel/functions/oidc within the
+          // request scope. Fall back to the env var (present at build) just in case.
           getSubjectToken: async () => {
-            const token = process.env.VERCEL_OIDC_TOKEN;
-            if (!token) {
-              throw new Error("VERCEL_OIDC_TOKEN missing — enable OIDC federation on the Vercel project");
+            try {
+              const { getVercelOidcToken } = await import("@vercel/functions/oidc");
+              const token = await getVercelOidcToken();
+              if (token) return token;
+            } catch (e) {
+              console.warn("getVercelOidcToken failed:", e instanceof Error ? e.message : e);
             }
-            return token;
+            const env = process.env.VERCEL_OIDC_TOKEN;
+            if (env) return env;
+            throw new Error("VERCEL_OIDC_TOKEN unavailable — check OIDC federation on the Vercel project");
           },
         },
       });
