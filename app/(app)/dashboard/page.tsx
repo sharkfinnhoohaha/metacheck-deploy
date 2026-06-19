@@ -76,12 +76,17 @@ export default async function DashboardPage() {
               </div>
             ))}
           </div>
-          <Link
-            href="/validate"
-            className="press inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-accent text-white font-semibold text-sm hover:bg-accent-bright transition-colors glow-teal"
-          >
-            Check your first release <IconArrowRight size={16} />
-          </Link>
+          <div className="flex flex-wrap items-center gap-4">
+            <Link
+              href="/validate"
+              className="press inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-accent text-white font-semibold text-sm hover:bg-accent-bright transition-colors glow-teal"
+            >
+              Check your first release <IconArrowRight size={16} />
+            </Link>
+            <Link href="/validate?sample=1" className="text-sm text-accent-bright hover:underline">
+              or see a sample first →
+            </Link>
+          </div>
         </div>
       )}
 

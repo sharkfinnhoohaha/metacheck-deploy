@@ -59,6 +59,19 @@ function buildRuleFallback(tracks: TrackInput[], results: ResultInput[]) {
     .filter((f): f is NonNullable<typeof f> => f !== null);
 }
 
+/** Plain-English "what this costs you" line for the rule fallback (no AI). */
+function buildImpact(results: ResultInput[]): string {
+  const c = results.filter((r) => r.severity === "critical").length;
+  const w = results.filter((r) => r.severity === "warning").length;
+  if (c === 0 && w === 0) {
+    return "Your metadata looks clean — nothing here is costing you royalties or risking a rejection.";
+  }
+  const parts: string[] = [];
+  if (c > 0) parts.push(`${c} critical issue${c > 1 ? "s" : ""} that can get this release rejected or break royalty tracking`);
+  if (w > 0) parts.push(`${w} warning${w > 1 ? "s" : ""} that quietly cost you discoverability or publishing royalties`);
+  return `This release has ${parts.join(" and ")}. Left unfixed, that means delayed or rejected submissions and money slipping into the MLC's unmatched-royalties black box — fix them before you hit submit.`;
+}
+
 export async function POST(req: Request) {
   const { userId } = await auth();
 
@@ -89,7 +102,11 @@ export async function POST(req: Request) {
     }
     if (!allowed) {
       return Response.json(
-        { data: null, error: "AI fixes are a Pro feature. Upgrade to Pro for AI-powered suggestions." },
+        {
+          data: null,
+          error: "You've used your free AI fix this month. Upgrade to Pro for unlimited AI-powered fixes.",
+          upgrade: true,
+        },
         { status: 403 }
       );
     }
@@ -118,7 +135,7 @@ export async function POST(req: Request) {
   const canCallModel = isAiConfigured() && (Boolean(userId) || isRateLimitConfigured());
   if (!canCallModel) {
     return Response.json({
-      data: { fixes: buildRuleFallback(tracks, results), source: "rules" },
+      data: { fixes: buildRuleFallback(tracks, results), impact: buildImpact(results), source: "rules" },
       error: null,
     });
   }
@@ -133,14 +150,16 @@ export async function POST(req: Request) {
     const cleanText = jsonMatch ? jsonMatch[0] : text;
 
     let fixes: unknown[];
+    let impact: string;
     try {
       const json = JSON.parse(cleanText);
       fixes = Array.isArray(json.fixes) ? json.fixes : [];
+      impact = typeof json.impact === "string" && json.impact.trim() ? json.impact.trim() : buildImpact(results);
     } catch {
       console.error("Malformed AI response:", text.slice(0, 500));
       // Don't bill a failed call — fall back to rules instead of erroring.
       return Response.json({
-        data: { fixes: buildRuleFallback(tracks, results), source: "rules" },
+        data: { fixes: buildRuleFallback(tracks, results), impact: buildImpact(results), source: "rules" },
         error: null,
       });
     }
@@ -154,12 +173,12 @@ export async function POST(req: Request) {
       }
     }
 
-    return Response.json({ data: { fixes, source: "ai" }, error: null });
+    return Response.json({ data: { fixes, impact, source: "ai" }, error: null });
   } catch (err) {
     console.error("Gemini API error:", err instanceof Error ? err.message : err);
     // Model/credentials failure → deterministic fallback so the user still gets value.
     return Response.json({
-      data: { fixes: buildRuleFallback(tracks, results), source: "rules" },
+      data: { fixes: buildRuleFallback(tracks, results), impact: buildImpact(results), source: "rules" },
       error: null,
     });
   }

@@ -14,6 +14,11 @@ const MONTHLY_AI_LIMITS: Record<Tier, number> = {
   team: 1500,
 };
 
+// Free users get one real AI fix per month — a "taste" of the premium feature on
+// their own release, which converts far better than a hard 0. Self-enforced by
+// the existing usage counter, so no schema change is needed.
+const FREE_AI_TASTE = 1;
+
 function currentMonth(): string {
   const now = new Date();
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
@@ -78,9 +83,20 @@ export async function canValidate(clerkId: string): Promise<boolean> {
 export async function canUseAI(clerkId: string): Promise<boolean> {
   const tier = await getUserTier(clerkId);
   const limit = MONTHLY_AI_LIMITS[tier];
-  if (limit === 0) return false;
   const { ai_calls } = await getUsage(clerkId);
+  // Free tier (limit 0) still gets the monthly taste allowance.
+  if (limit === 0) return ai_calls < FREE_AI_TASTE;
   return ai_calls < limit;
+}
+
+/** AI allowance snapshot for the current month, for UI badges and upgrade prompts. */
+export async function getAiAllowance(
+  clerkId: string
+): Promise<{ tier: Tier; used: number; limit: number }> {
+  const tier = await getUserTier(clerkId);
+  const limit = MONTHLY_AI_LIMITS[tier] === 0 ? FREE_AI_TASTE : MONTHLY_AI_LIMITS[tier];
+  const { ai_calls } = await getUsage(clerkId);
+  return { tier, used: ai_calls, limit };
 }
 
 /**

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import Papa from "papaparse";
 import type { TrackMeta, ValidationResult, ArtworkCheckResult } from "@/lib/validation/types";
 import { validateRelease, getGrade } from "@/lib/validation/rules";
@@ -8,7 +8,7 @@ import { PROFILES, getProfile } from "@/lib/validation/profiles";
 import { checkArtworkFile, scanArtworkText } from "@/lib/validation/artwork";
 import { checkSyncReadiness, CATEGORY_LABEL, type SyncCategory } from "@/lib/validation/sync";
 import { exportCsv } from "@/lib/export/csv";
-import { IconCheck, IconClapper, IconArrowRight, IconUpload, IconChevronDown } from "@/app/_components/icons";
+import { IconCheck, IconClapper, IconArrowRight, IconUpload, IconChevronDown, IconBolt, IconSparkles } from "@/app/_components/icons";
 
 // ── CSV column auto-mapping ───────────────────────────────────────────────────
 const CSV_MAP: Record<string, keyof TrackMeta> = {
@@ -52,6 +52,26 @@ function emptyTrack(trackNumber?: number): TrackMeta {
     explicit: "", language: "", duration: "", aiDisclosure: "",
     bpm: "", musicalKey: "", moodTags: "", instrumentalAvailable: "",
     cleanVersionAvailable: "", stemsAvailable: "", oneStopClearance: "", licensingContact: "",
+  };
+}
+
+// A realistic release with planted issues so a brand-new user sees the engine
+// catch real problems (and offer one-click fixes) without typing anything.
+function sampleTrack(): TrackMeta {
+  return {
+    ...emptyTrack(1),
+    title: "midnight drive",            // all-lowercase → fixable title-case
+    artist: "Jane Doe",
+    album: "Neon Nights",
+    isrc: "",                            // missing → critical (generic profile)
+    genre: "Music",                     // too generic → suggestion
+    releaseDate: "",                    // missing → editorial-window warning
+    songwriters: "Jane Doe, Mike",      // "Mike" single token → legal-name nudge
+    splits: "Jane Doe 60%, Mike 30%",   // totals 90% → critical
+    producers: "",                      // missing → warning
+    copyright: "",                      // missing → fixable warning
+    explicit: "",                       // unset → warning
+    duration: "3:45",
   };
 }
 
@@ -238,6 +258,32 @@ function ArtworkRow({ a }: { a: ArtworkCheckResult }) {
   );
 }
 
+// ── Upgrade prompt (shown when the free AI taste is spent) ─────────────────────
+function UpgradeCard({ context }: { context: string }) {
+  return (
+    <div className="gradient-border rounded-xl bg-accent/5 p-5">
+      <div className="flex items-start gap-3">
+        <span className="w-9 h-9 rounded-lg bg-accent/15 text-accent-bright flex items-center justify-center shrink-0">
+          <IconSparkles size={18} />
+        </span>
+        <div className="flex-1">
+          <h4 className="font-semibold text-text mb-1">You&apos;ve used your free AI {context} this month</h4>
+          <p className="text-sm text-text-muted mb-4">
+            Upgrade to Pro for unlimited AI fixes &amp; briefs, release history, PDF reports and distributor
+            profiles — $9/mo. A single missed ISRC costs more than a year of Pro.
+          </p>
+          <a
+            href="/api/checkout?tier=pro"
+            className="press inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-accent text-white text-sm font-semibold hover:bg-accent-bright transition-colors"
+          >
+            Upgrade to Pro <IconArrowRight size={15} />
+          </a>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Sync-Ready panel ──────────────────────────────────────────────────────────
 const SYNC_TOGGLES: { key: keyof TrackMeta; label: string }[] = [
   { key: "instrumentalAvailable", label: "Instrumental" },
@@ -383,6 +429,14 @@ function SyncPanel({
 // ── Main page ─────────────────────────────────────────────────────────────────
 type Mode = "single" | "multi" | "csv" | "batch";
 
+type BriefData = {
+  verdict: string;
+  headline?: string;
+  summary?: string;
+  exposure?: { issue: string; cost: string }[];
+  fixOrder?: string[];
+};
+
 // A validated release within a batch/catalog upload.
 type BatchRelease = {
   title: string;
@@ -414,6 +468,11 @@ export default function ValidatePage() {
   const [isRunning, setIsRunning] = useState(false);
   const [aiLoading, setAiLoading] = useState(false);
   const [aiFixes, setAiFixes] = useState<import("@/lib/validation/types").AiFix[] | null>(null);
+  const [aiImpact, setAiImpact] = useState<string | null>(null);
+  const [aiUpgrade, setAiUpgrade] = useState(false);
+  const [brief, setBrief] = useState<BriefData | null>(null);
+  const [briefLoading, setBriefLoading] = useState(false);
+  const [briefUpgrade, setBriefUpgrade] = useState(false);
   const [savedId, setSavedId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   // Artwork QC
@@ -425,8 +484,73 @@ export default function ValidatePage() {
   const [artworkFile, setArtworkFile] = useState<File | null>(null);
   // Sync-Ready (music-supervision) panel — opt-in to keep the page uncluttered.
   const [showSync, setShowSync] = useState(false);
+  // Onboarding: paste-a-row box + "picked up where you left off" handoff banner.
+  const [showPaste, setShowPaste] = useState(false);
+  const [pasteText, setPasteText] = useState("");
+  const [handoff, setHandoff] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const artworkInputRef = useRef<HTMLInputElement>(null);
+
+  // Load a track straight into the single-track form AND grade it immediately, so
+  // the user sees a result without a separate "Run" click.
+  const loadAndGrade = useCallback((track: TrackMeta) => {
+    const t = { ...emptyTrack(1), ...track };
+    setMode("single");
+    setTracks([t]);
+    setFixedTracks([t]);
+    const raw = validateRelease([t], getProfile(profileId));
+    setResults(raw.map((r) => ({ ...r, _fixed: false })));
+    setBatch(null);
+    setAiFixes(null);
+    setAiImpact(null);
+    setAiUpgrade(false);
+    setBrief(null);
+    setBriefUpgrade(false);
+    setSavedId(null);
+  }, [profileId]);
+
+  const loadSample = useCallback(() => {
+    setHandoff(false);
+    loadAndGrade(sampleTrack());
+  }, [loadAndGrade]);
+
+  // Parse a pasted spreadsheet row (header-aware) or "Title - Artist" free text.
+  const loadFromPaste = (text: string) => {
+    const trimmed = text.trim();
+    if (!trimmed) return;
+    const parsed = Papa.parse<Record<string, string>>(trimmed, { header: true, skipEmptyLines: true });
+    if (parsed.data?.length && (parsed.meta?.fields?.length ?? 0) > 1) {
+      loadAndGrade(mapCsvRow(parsed.data[0]));
+    } else {
+      const [title, artist] = trimmed.split(/\s+[-–—]\s+/);
+      loadAndGrade({ ...emptyTrack(1), title: (title || trimmed).trim(), artist: (artist || "").trim() });
+    }
+    setShowPaste(false);
+    setPasteText("");
+  };
+
+  // On mount: ?sample=1 deep-link, or a release the user checked in the public
+  // demo before signing up (handed off via localStorage, recent only).
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (new URLSearchParams(window.location.search).get("sample") === "1") {
+      loadSample();
+      return;
+    }
+    try {
+      const raw = localStorage.getItem("metacheck_pending_release");
+      if (raw) {
+        localStorage.removeItem("metacheck_pending_release");
+        const { track, ts } = JSON.parse(raw);
+        if (track && (track.title || track.artist) && Date.now() - (ts ?? 0) < 2 * 60 * 60 * 1000) {
+          loadAndGrade(track);
+          setHandoff(true);
+        }
+      }
+    } catch { /* ignore malformed handoff */ }
+    // Run once on mount only.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Track mutations
   const updateTrack = useCallback((idx: number, key: keyof TrackMeta, val: string) => {
@@ -484,6 +608,10 @@ export default function ValidatePage() {
     setResults(raw.map((r) => ({ ...r, _fixed: false })));
     setFixedTracks([...tracks]);
     setAiFixes(null);
+    setAiImpact(null);
+    setAiUpgrade(false);
+    setBrief(null);
+    setBriefUpgrade(false);
     setSavedId(null);
     setIsRunning(false);
   };
@@ -566,23 +694,53 @@ export default function ValidatePage() {
   // AI suggestions
   const runAiFixes = async () => {
     setAiLoading(true);
+    setAiUpgrade(false);
     try {
-      // We pass the current tracks and the validation results so the AI knows what to fix
       const res = await fetch("/api/ai/fix", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ tracks, results }),
       });
       const json = await res.json();
+      // Free-tier AI taste exhausted → show an upgrade card, not an error.
+      if (res.status === 403 && json.upgrade) {
+        setAiUpgrade(true);
+        return;
+      }
       if (!res.ok) throw new Error(json.error || "AI request failed");
-      
-      // The AI returns an array of fixes: { trackIndex, field, original, fixed, reason }
       setAiFixes(json.data?.fixes ?? []);
+      setAiImpact(typeof json.data?.impact === "string" ? json.data.impact : null);
     } catch (err) {
       console.error("AI Fix Error:", err);
       alert(err instanceof Error ? err.message : "AI request failed");
     } finally {
       setAiLoading(false);
+    }
+  };
+
+  // AI Submission Readiness Brief — a manager-grade "is this ready and why" verdict.
+  const runBrief = async () => {
+    setBriefLoading(true);
+    setBriefUpgrade(false);
+    try {
+      const active = results?.filter((r) => !r._fixed) ?? [];
+      const res = await fetch("/api/ai/brief", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tracks: fixedTracks, results: active, distributor: getProfile(profileId).name }),
+      });
+      const json = await res.json();
+      if (res.status === 403 && json.upgrade) {
+        setBriefUpgrade(true);
+        return;
+      }
+      if (!res.ok) throw new Error(json.error || "Brief request failed");
+      setBrief((json.data?.brief as BriefData) ?? null);
+    } catch (err) {
+      console.error("AI Brief Error:", err);
+      alert(err instanceof Error ? err.message : "Brief request failed");
+    } finally {
+      setBriefLoading(false);
     }
   };
 
@@ -726,6 +884,50 @@ export default function ValidatePage() {
                 {batch.length} release{batch.length === 1 ? "" : "s"} ·{" "}
                 {batch.reduce((n, b) => n + b.tracks.length, 0)} tracks loaded
               </p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Onboarding: demo handoff banner + quick-start row */}
+      {handoff && (
+        <div className="mb-4 flex items-center gap-2.5 rounded-xl border border-accent/20 bg-accent/5 px-4 py-3">
+          <IconSparkles size={16} className="text-accent-bright shrink-0" />
+          <p className="text-sm text-text-muted">Picked up where you left off — here&apos;s the release you checked in the demo.</p>
+        </div>
+      )}
+      {(mode === "single" || mode === "multi") && !results && (
+        <div className="mb-5">
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={loadSample}
+              className="press inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-accent/10 text-accent-bright border border-accent/20 text-sm font-medium hover:bg-accent/20 transition-colors"
+            >
+              <IconBolt size={15} /> Load sample release
+            </button>
+            <button
+              onClick={() => setShowPaste((v) => !v)}
+              className="press px-4 py-2 rounded-lg bg-surface border border-border text-sm text-text-muted hover:text-text transition-colors"
+            >
+              Paste a row
+            </button>
+            <span className="text-xs text-text-dim">New here? Try a sample to watch it catch real issues in one click.</span>
+          </div>
+          {showPaste && (
+            <div className="mt-3">
+              <textarea
+                value={pasteText}
+                onChange={(e) => setPasteText(e.target.value)}
+                placeholder="Paste a row from your DistroKid / CD Baby / TuneCore export — or just type: Midnight Drive - Jane Doe"
+                rows={3}
+                className="w-full px-3 py-2 rounded-lg bg-surface border border-border text-sm text-text placeholder-text-dim focus:outline-none focus:border-accent transition-colors font-mono"
+              />
+              <button
+                onClick={() => loadFromPaste(pasteText)}
+                className="press mt-2 inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-accent text-white text-sm font-semibold hover:bg-accent-bright transition-colors"
+              >
+                Check it <IconArrowRight size={15} />
+              </button>
             </div>
           )}
         </div>
@@ -963,21 +1165,92 @@ export default function ValidatePage() {
             </div>
           </div>
 
-          {/* AI suggestions (Pro) */}
+          {/* AI Submission Readiness Brief */}
           <div className="rounded-xl border border-border bg-bg-elevated p-5">
-            <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center justify-between gap-3 mb-3">
               <div className="flex items-center gap-2">
-                <h3 className="font-mono text-sm text-text">AI Suggestions</h3>
-                <span className="text-xs px-2 py-0.5 rounded bg-accent/10 text-accent-bright border border-accent/20 font-mono">Pro</span>
+                <span className="w-8 h-8 rounded-lg bg-accent/10 text-accent-bright flex items-center justify-center"><IconClapper size={16} /></span>
+                <div>
+                  <h3 className="text-sm font-medium text-text">AI submission brief</h3>
+                  <p className="text-xs text-text-dim">Is this ready to ship — and what each issue costs you?</p>
+                </div>
+              </div>
+              {!brief && !briefUpgrade && (
+                <button
+                  onClick={runBrief}
+                  disabled={briefLoading}
+                  className="press shrink-0 inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-accent text-white text-xs font-semibold hover:bg-accent-bright transition-colors disabled:opacity-50"
+                >
+                  <IconSparkles size={14} /> {briefLoading ? "Writing brief…" : "Generate brief"}
+                </button>
+              )}
+            </div>
+            {briefUpgrade && <UpgradeCard context="run" />}
+            {brief && (
+              <div className="space-y-4 mt-1">
+                <div className="flex flex-wrap items-center gap-3">
+                  <span className={`px-2.5 py-1 rounded-full text-xs font-semibold border ${
+                    brief.verdict === "ready" ? "bg-green/10 text-green border-green/20"
+                      : brief.verdict === "close" ? "bg-amber/10 text-amber border-amber/20"
+                      : "bg-red/10 text-red border-red/20"
+                  }`}>
+                    {brief.verdict === "ready" ? "Ready to submit" : brief.verdict === "close" ? "Almost ready" : "Not ready"}
+                  </span>
+                  {brief.headline && <p className="text-sm text-text font-medium">{brief.headline}</p>}
+                </div>
+                {brief.summary && <p className="text-sm text-text-muted leading-relaxed">{brief.summary}</p>}
+                {brief.exposure && brief.exposure.length > 0 && (
+                  <div>
+                    <p className="text-xs text-text-dim uppercase tracking-wider mb-2">What it costs you</p>
+                    <div className="space-y-2">
+                      {brief.exposure.map((e, i) => (
+                        <div key={i} className="rounded-lg border border-border bg-surface/40 px-4 py-3">
+                          <p className="text-sm text-text">{e.issue}</p>
+                          <p className="text-xs text-text-muted mt-0.5">{e.cost}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {brief.fixOrder && brief.fixOrder.length > 0 && (
+                  <div>
+                    <p className="text-xs text-text-dim uppercase tracking-wider mb-2">Fix in this order</p>
+                    <ol className="space-y-1.5">
+                      {brief.fixOrder.map((f, i) => (
+                        <li key={i} className="flex gap-2.5 text-sm text-text-muted">
+                          <span className="shrink-0 w-5 h-5 rounded-full bg-accent/10 text-accent-bright text-xs flex items-center justify-center">{i + 1}</span>
+                          {f}
+                        </li>
+                      ))}
+                    </ol>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* AI fixes */}
+          <div className="rounded-xl border border-border bg-bg-elevated p-5">
+            <div className="flex items-center justify-between gap-3 mb-3">
+              <div className="flex items-center gap-2">
+                <h3 className="text-sm font-medium text-text">AI fixes</h3>
+                <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full bg-accent/10 text-accent-bright border border-accent/20"><IconSparkles size={11} /> 1 free / mo</span>
               </div>
               <button
                 onClick={runAiFixes}
                 disabled={aiLoading}
-                className="px-4 py-2 rounded-lg bg-accent text-white text-xs font-mono hover:bg-accent-bright transition-colors disabled:opacity-50"
+                className="press inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-accent text-white text-xs font-semibold hover:bg-accent-bright transition-colors disabled:opacity-50"
               >
-                {aiLoading ? "Analysing…" : "Get AI Fixes →"}
+                {aiLoading ? "Analysing…" : <>Get AI fixes <IconArrowRight size={14} /></>}
               </button>
             </div>
+            {aiUpgrade && <UpgradeCard context="fix" />}
+            {aiImpact && !aiUpgrade && (
+              <div className="mb-3 rounded-lg border border-amber/20 bg-amber/5 px-4 py-3">
+                <p className="text-xs text-amber font-medium uppercase tracking-wider mb-1">What this costs you</p>
+                <p className="text-sm text-text-muted leading-relaxed">{aiImpact}</p>
+              </div>
+            )}
             {aiFixes && aiFixes.length === 0 && (
               <p className="text-sm text-text-muted font-mono">No additional AI suggestions — metadata looks good!</p>
             )}

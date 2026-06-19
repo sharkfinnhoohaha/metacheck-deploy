@@ -78,6 +78,10 @@ export function LiveDemo() {
     setSearchResults([]);
     setQuery("");
     setAiFixes([]);
+    // Hand the checked release off to /validate so signup continues, not restarts.
+    try {
+      localStorage.setItem("metacheck_pending_release", JSON.stringify({ track, ts: Date.now() }));
+    } catch { /* localStorage unavailable — handoff is best-effort */ }
   };
 
   const runAiFix = async () => {

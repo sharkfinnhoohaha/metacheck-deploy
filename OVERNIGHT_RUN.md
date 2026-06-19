@@ -67,6 +67,19 @@ Ran a multi-agent audit: 6 research agents (Reddit + distributor forums) → 45 
 - Cover/remix mechanical-license + clearance — needs `isCover`/`isRemix`/`mechanicalLicenseSecured`.
 - One-pitch-per-release picker (`pitchPick`), publishing-admin double-registration conflict (`publishingAdmin`), artwork-text↔metadata exact-match (extend OCR).
 
+## Onboarding + AI value pass (judge-panel designed, ultracode)
+Ran an 8-agent judge-panel design workflow on "smoothest onboarding + most value to convert free→paid (credits available)", then built the top, lowest-risk features:
+
+**Onboarding (no AI, zero credit cost):**
+- **One-click sample release** on /validate — `sampleTrack()` with planted issues grades instantly so a new user sees the tool catch real problems without typing. Button + dashboard "see a sample first →" deep-link (`?sample=1`).
+- **Paste-a-row** box — paste a DistroKid/CD Baby/TuneCore row or "Title - Artist" free text → instant grade (header-aware via papaparse).
+- **Demo→signup handoff** — the public demo stores the checked release in localStorage; /validate hydrates it on first load ("Picked up where you left off") so signup continues instead of restarting.
+
+**AI value (spends Gemini credits, drives conversion):**
+- **Free AI taste** — free tier now gets **1 AI fix/month** (was 0) via `canUseAI` (no migration; self-enforced by the usage counter). Exhaustion returns a structured `{upgrade:true}` payload → in-context **UpgradeCard** instead of a raw error.
+- **"What this costs you"** — the AI fix response now returns an `impact` line (royalties lost / rejection risk) rendered as a callout; deterministic fallback when no AI.
+- **AI Submission Readiness Brief** — new `/api/ai/brief` route + card: a manager-grade verdict (ready / close / not-ready), money-at-risk exposure, and a prioritized fix order. Reuses the same Vertex/Gemini client, rate-limiting, gating and rule-fallback as the fix route. No new env vars.
+
 ## Operator action items (chat reply has these too)
 1. This work is on branch `worktree-ui-modernize` (NOT merged to main, NOT pushed). Review, then merge when happy.
 2. Nothing new to configure — both new features run 100% client-side, no env vars.
