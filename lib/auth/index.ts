@@ -115,9 +115,17 @@ export async function reserveAiCall(
     p_limit: limit,
   });
   if (error) {
-    // RPC not present yet (migration 004 not applied) → legacy read-then-check.
-    const { ai_calls } = await getUsage(clerkId);
-    return { granted: ai_calls < limit, counted: false };
+    const code = (error as { code?: string }).code;
+    // PGRST202 (PostgREST: function not in schema) / 42883 (undefined_function) ⇒
+    // migration 004 genuinely isn't applied yet → legacy read-then-check (the
+    // caller charges via trackUsage on success). Any OTHER error is transient, so
+    // fail CLOSED (throw → the route returns 503) rather than silently reverting
+    // to the non-atomic, raceable path once 004 is live.
+    if (code === "PGRST202" || code === "42883") {
+      const { ai_calls } = await getUsage(clerkId);
+      return { granted: ai_calls < limit, counted: false };
+    }
+    throw new Error(`consume_ai_call failed: ${error.message}`);
   }
   return { granted: data !== null && data !== undefined, counted: true };
 }
@@ -154,10 +162,17 @@ export async function consumeCredit(clerkId: string): Promise<boolean> {
   return data !== null && data !== undefined; // NULL = no credit was available
 }
 
-/** Atomically grant release credits (called from billing webhooks). */
+/**
+ * Atomically grant release credits (called from billing webhooks). THROWS on a DB
+ * error OR a no-row match (the Clerk user row hasn't synced yet) so the caller's
+ * retry/rollback path runs — a swallowed failure here means a PAID purchase grants
+ * nothing and (with webhook dedup) is never retried. Callers that merely refund a
+ * credit the user already owned should catch the throw instead.
+ */
 export async function addCredits(clerkId: string, qty: number): Promise<void> {
-  const { error } = await supabaseAdmin.rpc("add_credits", { p_clerk_id: clerkId, p_qty: qty });
-  if (error) console.error("add_credits error:", error);
+  const { data, error } = await supabaseAdmin.rpc("add_credits", { p_clerk_id: clerkId, p_qty: qty });
+  if (error) throw new Error(`add_credits failed: ${error.message}`);
+  if (data === null || data === undefined) throw new Error(`add_credits matched no user row for ${clerkId}`);
 }
 
 /**

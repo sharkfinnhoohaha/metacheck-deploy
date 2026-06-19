@@ -65,7 +65,15 @@ export async function POST(req: Request) {
 
   if (error) {
     console.error("release insert error:", error);
-    if (usedCredit) await addCredits(userId, 1); // refund — the save didn't happen
+    // Refund the credit the user already owned. Best-effort — a failed refund
+    // must not mask the save error or break the response (addCredits now throws).
+    if (usedCredit) {
+      try {
+        await addCredits(userId, 1);
+      } catch (e) {
+        console.error("credit refund failed after save error:", e);
+      }
+    }
     return Response.json({ data: null, error: "Couldn't save your release. Please try again." }, { status: 500 });
   }
 
