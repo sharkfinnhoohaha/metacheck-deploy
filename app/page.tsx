@@ -67,7 +67,7 @@ export default function Home() {
           <div className="max-w-3xl">
             <div className="fade-up fade-up-1 inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-accent/30 bg-accent-glow mb-6">
               <span className="w-1.5 h-1.5 rounded-full bg-accent-bright pulse-soft" />
-              <span className="text-xs font-mono text-accent-bright">Launching Soon — Free for Indie Artists</span>
+              <span className="text-xs font-mono text-accent-bright">Now live — free for indie artists</span>
             </div>
 
             <h1 className="fade-up fade-up-2 font-display text-5xl md:text-6xl lg:text-7xl leading-[1.05] tracking-tight mb-6">
@@ -83,12 +83,12 @@ export default function Home() {
             </p>
 
             <div className="fade-up fade-up-4 flex flex-wrap items-center gap-4 mb-4">
-              <a
-                href="#waitlist"
+              <Link
+                href="/sign-up"
                 className="px-6 py-3 bg-accent text-white rounded-lg text-sm font-semibold hover:bg-accent-bright transition-colors glow-teal"
               >
-                Join the Waitlist →
-              </a>
+                Start free →
+              </Link>
               <a href="#demo" className="px-6 py-3 border border-border-bright rounded-lg text-sm font-medium text-text-muted hover:text-text hover:border-text-muted transition-colors">
                 Try Live Demo ↓
               </a>
@@ -126,6 +126,10 @@ export default function Home() {
             <h2 className="font-display text-3xl md:text-4xl tracking-tight mb-3">See it catch real errors</h2>
             <p className="text-text-muted max-w-md mx-auto text-sm">
               This is the actual validation engine. Click the sample tracks below or enter your own metadata.
+            </p>
+            <p className="text-xs text-text-dim mt-3 max-w-md mx-auto">
+              🔒 Validation runs entirely in your browser — your unreleased metadata never leaves your device.
+              Works with DistroKid, TuneCore &amp; CD Baby CSV exports.
             </p>
           </div>
           <LiveDemo />
@@ -245,24 +249,27 @@ export default function Home() {
                 name: "Free",
                 price: "$0",
                 interval: "",
-                features: ["3 releases per month", "15 validation rules", "CSV export", "Manual entry"],
-                cta: "Get Started Free",
+                features: ["3 releases per month", "All validation rules", "Artwork checks", "CSV export"],
+                cta: "Get started free",
+                href: "/sign-up",
                 highlight: false,
               },
               {
                 name: "Pro",
                 price: "$9",
-                interval: "/month",
-                features: ["Unlimited releases", "30+ validation rules", "AI fix suggestions", "CSV + DDEX import", "Release history", "Priority support"],
-                cta: "Join Waitlist",
+                interval: "/mo · or $49/yr",
+                features: ["Unlimited releases", "AI fix suggestions", "Release history", "PDF reports", "Distributor profiles", "Priority support"],
+                cta: "Start with Pro",
+                href: "/sign-up",
                 highlight: true,
               },
               {
                 name: "Label",
                 price: "$29",
-                interval: "/month",
-                features: ["Everything in Pro", "5 team members", "Bulk validation", "API access", "Custom rules", "Dedicated support"],
-                cta: "Contact Us",
+                interval: "/mo · or $290/yr",
+                features: ["Everything in Pro", "Batch / catalog mode", "5 team members", "API access", "Custom rules"],
+                cta: "Start with Label",
+                href: "/sign-up",
                 highlight: false,
               },
             ].map((t) => (
@@ -295,8 +302,8 @@ export default function Home() {
                   ))}
                 </ul>
 
-                <a
-                  href="#waitlist"
+                <Link
+                  href={t.href}
                   className={`block text-center py-3 rounded-lg text-sm font-semibold transition-colors ${
                     t.highlight
                       ? "bg-accent text-white hover:bg-accent-bright"
@@ -304,46 +311,41 @@ export default function Home() {
                   }`}
                 >
                   {t.cta}
-                </a>
+                </Link>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* ── WAITLIST CTA ────────────────────────────────── */}
-      <section id="waitlist" className="py-20 border-t border-border bg-bg-elevated">
+      {/* ── FINAL CTA ───────────────────────────────────── */}
+      <section id="get-started" className="py-20 border-t border-border bg-bg-elevated">
         <div className="mx-auto max-w-xl px-6 text-center">
           <h2 className="font-display text-3xl md:text-4xl tracking-tight mb-3">
             Stop losing royalties to<br />
             <span className="text-accent-bright italic">sloppy metadata</span>
           </h2>
           <p className="text-text-muted text-sm mb-8 max-w-md mx-auto">
-            Join the waitlist. We&apos;ll let you know when MetaCheck is live.
-            Early signups get Pro free for the first month.
+            Check your next release in seconds — catch the errors that cost you a release date or a
+            royalty before you ever hit submit.
           </p>
 
-          <form
-            action="https://formspree.io/f/YOUR_FORM_ID"
-            method="POST"
-            className="flex gap-3 max-w-md mx-auto"
-          >
-            <input
-              type="email"
-              name="email"
-              required
-              placeholder="your@email.com"
-              className="flex-1 px-4 py-3 bg-bg-card border border-border-bright rounded-lg text-sm text-text placeholder:text-text-dim focus:outline-none focus:border-accent transition-colors font-mono"
-            />
-            <button
-              type="submit"
-              className="px-6 py-3 bg-accent text-white rounded-lg text-sm font-semibold hover:bg-accent-bright transition-colors whitespace-nowrap"
+          <div className="flex flex-wrap items-center justify-center gap-3">
+            <Link
+              href="/sign-up"
+              className="px-6 py-3 bg-accent text-white rounded-lg text-sm font-semibold hover:bg-accent-bright transition-colors glow-teal"
             >
-              Join Waitlist
-            </button>
-          </form>
+              Start free →
+            </Link>
+            <a
+              href="#demo"
+              className="px-6 py-3 border border-border-bright rounded-lg text-sm font-medium text-text-muted hover:text-text hover:border-text-muted transition-colors"
+            >
+              Try the live demo ↓
+            </a>
+          </div>
 
-          <p className="text-[11px] text-text-dim mt-4 font-mono">No spam. Unsubscribe anytime.</p>
+          <p className="text-[11px] text-text-dim mt-4 font-mono">Free for 3 releases/month · No credit card required</p>
         </div>
       </section>
 
@@ -352,8 +354,8 @@ export default function Home() {
         <div className="mx-auto max-w-6xl px-6 flex items-center justify-between text-xs text-text-dim font-mono">
           <span>&copy; {new Date().getFullYear()} Overlook Strategy</span>
           <div className="flex gap-6">
-            <a href="#" className="hover:text-text-muted transition-colors">Terms</a>
-            <a href="#" className="hover:text-text-muted transition-colors">Privacy</a>
+            <Link href="/terms" className="hover:text-text-muted transition-colors">Terms</Link>
+            <Link href="/privacy" className="hover:text-text-muted transition-colors">Privacy</Link>
           </div>
         </div>
       </footer>

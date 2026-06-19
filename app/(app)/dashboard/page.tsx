@@ -15,7 +15,7 @@ export default async function DashboardPage() {
   const month = new Date().toISOString().slice(0, 7);
   const [{ data: usage }, { data: userData }, { data: recentReleases }] = await Promise.all([
     supabase.from("usage").select("*").eq("clerk_id", userId!).eq("month", month).single(),
-    supabase.from("users").select("tier").eq("clerk_id", userId!).single(),
+    supabase.from("users").select("tier, credits").eq("clerk_id", userId!).single(),
     supabase
       .from("releases")
       .select("id, title, artist, grade, track_count, created_at, critical_count, warning_count")
@@ -25,6 +25,8 @@ export default async function DashboardPage() {
   ]);
 
   const tier = userData?.tier ?? "free";
+  const credits = userData?.credits ?? 0;
+  const isFirstRun = !recentReleases?.length;
   const validations = usage?.validations ?? 0;
   const aiCalls = usage?.ai_calls ?? 0;
   const validationLimit = tier === "free" ? 3 : null;
@@ -43,10 +45,44 @@ export default async function DashboardPage() {
       {/* Welcome */}
       <div className="mb-10">
         <h1 className="font-display text-3xl text-text mb-1">
-          Welcome back{user?.firstName ? `, ${user.firstName}` : ""}
+          {isFirstRun
+            ? `Welcome to MetaCheck${user?.firstName ? `, ${user.firstName}` : ""}`
+            : `Welcome back${user?.firstName ? `, ${user.firstName}` : ""}`}
         </h1>
-        <p className="text-text-muted text-sm">Here&apos;s your MetaCheck overview.</p>
+        <p className="text-text-muted text-sm">
+          {isFirstRun ? "Let's get your first release checked." : "Here's your MetaCheck overview."}
+        </p>
       </div>
+
+      {/* First-run onboarding */}
+      {isFirstRun && (
+        <div className="mb-10 rounded-xl gradient-border bg-bg-card p-6">
+          <p className="text-xs font-mono text-accent-bright uppercase tracking-widest mb-4">Get started in 3 steps</p>
+          <div className="grid sm:grid-cols-3 gap-5 mb-6">
+            {[
+              { n: "1", t: "Add your release", d: "Type it in, paste a row, or upload your distributor CSV." },
+              { n: "2", t: "Scan & fix", d: "30+ rules run instantly. Apply one-click fixes to the issues found." },
+              { n: "3", t: "Save & export", d: "Save it to your history and export a clean, submit-ready file." },
+            ].map((s) => (
+              <div key={s.n} className="flex gap-3">
+                <span className="shrink-0 w-6 h-6 rounded-full bg-accent/15 text-accent-bright text-xs font-mono font-bold flex items-center justify-center">
+                  {s.n}
+                </span>
+                <div>
+                  <p className="text-sm font-medium text-text">{s.t}</p>
+                  <p className="text-xs text-text-muted leading-relaxed mt-0.5">{s.d}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+          <Link
+            href="/validate"
+            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-accent text-white font-semibold text-sm hover:bg-accent-bright transition-colors glow-teal"
+          >
+            Check your first release →
+          </Link>
+        </div>
+      )}
 
       {/* Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-10">
@@ -91,6 +127,11 @@ export default async function DashboardPage() {
           <p className={`text-2xl font-bold font-mono capitalize ${tier === "free" ? "text-text-muted" : "text-accent-bright"}`}>
             {tier}
           </p>
+          {credits > 0 && (
+            <p className="mt-2 text-xs text-accent-bright font-mono">
+              {credits} release credit{credits === 1 ? "" : "s"}
+            </p>
+          )}
           {tier === "free" && (
             <Link
               href="/settings"
@@ -103,15 +144,17 @@ export default async function DashboardPage() {
       </div>
 
       {/* Quick action */}
-      <div className="mb-10">
-        <Link
-          href="/validate"
-          className="inline-flex items-center gap-3 px-6 py-4 rounded-xl bg-accent text-white font-semibold text-sm hover:bg-accent-bright transition-colors glow-teal"
-        >
-          <span className="text-xl">⟨⟩</span>
-          Validate New Release
-        </Link>
-      </div>
+      {!isFirstRun && (
+        <div className="mb-10">
+          <Link
+            href="/validate"
+            className="inline-flex items-center gap-3 px-6 py-4 rounded-xl bg-accent text-white font-semibold text-sm hover:bg-accent-bright transition-colors glow-teal"
+          >
+            <span className="text-xl">⟨⟩</span>
+            Validate New Release
+          </Link>
+        </div>
+      )}
 
       {/* Recent releases */}
       <div>
