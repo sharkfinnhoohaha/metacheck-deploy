@@ -2,8 +2,10 @@
 
 import { useState, useCallback, useRef } from "react";
 import Papa from "papaparse";
-import type { TrackMeta, ValidationResult } from "@/lib/validation/types";
+import type { TrackMeta, ValidationResult, ArtworkCheckResult } from "@/lib/validation/types";
 import { validateRelease, getGrade } from "@/lib/validation/rules";
+import { PROFILES, getProfile } from "@/lib/validation/profiles";
+import { checkArtworkFile, scanArtworkText } from "@/lib/validation/artwork";
 import { exportCsv } from "@/lib/export/csv";
 
 // ── CSV column auto-mapping ───────────────────────────────────────────────────
@@ -18,6 +20,8 @@ const CSV_MAP: Record<string, keyof TrackMeta> = {
   "genre": "genre", "primary genre": "genre",
   "release date": "releaseDate", "street date": "releaseDate",
   "songwriter(s)": "songwriters", "writers": "songwriters", "songwriters": "songwriters",
+  "splits": "splits", "writer splits": "splits", "publishing splits": "splits",
+  "iswc": "iswc", "iswc code": "iswc",
   "producer(s)": "producers", "producers": "producers",
   "composers": "composers", "composer(s)": "composers",
   "copyright": "copyright", "℗ line": "copyright", "p line": "copyright",
@@ -42,7 +46,7 @@ function emptyTrack(trackNumber?: number): TrackMeta {
     trackNumber: trackNumber?.toString() ?? "",
     title: "", artist: "", featuredArtists: "", album: "",
     isrc: "", upc: "", genre: "", releaseDate: "", label: "",
-    songwriters: "", producers: "", composers: "", copyright: "",
+    songwriters: "", splits: "", iswc: "", producers: "", composers: "", copyright: "",
     explicit: "", language: "", duration: "",
   };
 }
@@ -60,6 +64,8 @@ const FIELDS: { key: keyof TrackMeta; label: string; placeholder?: string; requi
   { key: "releaseDate", label: "Release Date", placeholder: "YYYY-MM-DD" },
   { key: "label", label: "Label", placeholder: "Label Name or Artist Name" },
   { key: "songwriters", label: "Songwriters", placeholder: "Writer One, Writer Two" },
+  { key: "splits", label: "Writer Splits", placeholder: "Writer One 50%, Writer Two 50%" },
+  { key: "iswc", label: "ISWC", placeholder: "T-123.456.789-0" },
   { key: "producers", label: "Producers", placeholder: "Producer Name" },
   { key: "composers", label: "Composers", placeholder: "Composer Name" },
   { key: "copyright", label: "Copyright (℗)", placeholder: `℗ ${new Date().getFullYear()} Artist Name` },
@@ -89,6 +95,8 @@ const RESULT_FIELD_TO_KEY: Record<string, keyof TrackMeta> = {
   "label": "label",
   "duration": "duration",
   "track number": "trackNumber",
+  "splits": "splits",
+  "iswc": "iswc",
 };
 
 function resolveFieldKey(field: string): keyof TrackMeta | undefined {
@@ -139,7 +147,7 @@ function TrackForm({
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         {FIELDS.map((f) => (
-          <div key={f.key} className={f.key === "songwriters" || f.key === "producers" ? "sm:col-span-2" : ""}>
+          <div key={f.key} className={f.key === "songwriters" || f.key === "producers" || f.key === "splits" ? "sm:col-span-2" : ""}>
             <label className="block text-xs font-mono text-text-dim mb-1">
               {f.label}{f.required && <span className="text-red/70 ml-1">*</span>}
             </label>
@@ -206,21 +214,69 @@ function ResultCard({
   );
 }
 
+// ── Artwork result row ────────────────────────────────────────────────────────
+const ARTWORK_SEV: Record<string, { dot: string; text: string }> = {
+  critical: { dot: "bg-rose-500", text: "text-[#fda4af]" },
+  warning: { dot: "bg-amber-500", text: "text-[#fcd34d]" },
+  suggestion: { dot: "bg-blue-500", text: "text-[#93c5fd]" },
+  success: { dot: "bg-green-500", text: "text-green-400" },
+};
+
+function ArtworkRow({ a }: { a: ArtworkCheckResult }) {
+  const s = ARTWORK_SEV[a.severity] ?? ARTWORK_SEV.suggestion;
+  return (
+    <div className="flex items-start gap-3 rounded-lg border border-border bg-surface/50 px-4 py-3">
+      <span className={`mt-1 w-2 h-2 rounded-full shrink-0 ${s.dot}`} />
+      <p className={`text-sm leading-relaxed ${a.severity === "success" ? s.text : "text-text"}`}>{a.message}</p>
+    </div>
+  );
+}
+
 // ── Main page ─────────────────────────────────────────────────────────────────
-type Mode = "single" | "multi" | "csv";
+type Mode = "single" | "multi" | "csv" | "batch";
+
+// A validated release within a batch/catalog upload.
+type BatchRelease = {
+  title: string;
+  tracks: TrackMeta[];
+  results: ValidationResult[];
+  grade: ReturnType<typeof getGrade>;
+};
+
+// Group flat CSV rows into releases by album (falling back to UPC, then a single
+// bucket) so a label can QC a whole catalog from one spreadsheet.
+function groupReleases(tracks: TrackMeta[]): Record<string, TrackMeta[]> {
+  const groups: Record<string, TrackMeta[]> = {};
+  tracks.forEach((t) => {
+    const key = t.album?.trim() || t.upc?.trim() || "Untitled Release";
+    (groups[key] ||= []).push(t);
+  });
+  return groups;
+}
 
 export default function ValidatePage() {
   const [mode, setMode] = useState<Mode>("single");
+  const [profileId, setProfileId] = useState<string>("generic");
   const [tracks, setTracks] = useState<TrackMeta[]>([emptyTrack(1)]);
   const [results, setResults] = useState<(ValidationResult & { _fixed?: boolean })[] | null>(null);
   const [fixedTracks, setFixedTracks] = useState<TrackMeta[]>([]);
+  const [batch, setBatch] = useState<BatchRelease[] | null>(null);
+  const [expandedBatch, setExpandedBatch] = useState<Set<number>>(new Set());
   const [csvError, setCsvError] = useState<string | null>(null);
   const [isRunning, setIsRunning] = useState(false);
   const [aiLoading, setAiLoading] = useState(false);
   const [aiFixes, setAiFixes] = useState<import("@/lib/validation/types").AiFix[] | null>(null);
   const [savedId, setSavedId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  // Artwork QC
+  const [artworkName, setArtworkName] = useState<string | null>(null);
+  const [artworkResults, setArtworkResults] = useState<ArtworkCheckResult[] | null>(null);
+  const [artworkChecking, setArtworkChecking] = useState(false);
+  const [artworkTextResults, setArtworkTextResults] = useState<ArtworkCheckResult[] | null>(null);
+  const [artworkScanning, setArtworkScanning] = useState(false);
+  const [artworkFile, setArtworkFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const artworkInputRef = useRef<HTMLInputElement>(null);
 
   // Track mutations
   const updateTrack = useCallback((idx: number, key: keyof TrackMeta, val: string) => {
@@ -245,8 +301,21 @@ export default function ValidatePage() {
           return;
         }
         const mapped = parsed.data.map(mapCsvRow);
-        setTracks(mapped.map((t, i) => ({ ...t, trackNumber: t.trackNumber || String(i + 1) })));
-        setResults(null);
+        if (mode === "batch") {
+          // Catalog mode: split into releases and validate each independently.
+          const profile = getProfile(profileId);
+          const groups = groupReleases(mapped);
+          const releases: BatchRelease[] = Object.entries(groups).map(([title, grp]) => {
+            const grpTracks = grp.map((t, i) => ({ ...t, trackNumber: t.trackNumber || String(i + 1) }));
+            const res = validateRelease(grpTracks, profile);
+            return { title, tracks: grpTracks, results: res, grade: getGrade(res) };
+          });
+          setBatch(releases);
+          setExpandedBatch(new Set());
+        } else {
+          setTracks(mapped.map((t, i) => ({ ...t, trackNumber: t.trackNumber || String(i + 1) })));
+          setResults(null);
+        }
       },
       error: (err) => setCsvError(err.message),
     });
@@ -255,13 +324,49 @@ export default function ValidatePage() {
   // Run validation
   const runValidation = () => {
     setIsRunning(true);
-    const raw = validateRelease(tracks);
+    const raw = validateRelease(tracks, getProfile(profileId));
     setResults(raw.map((r) => ({ ...r, _fixed: false })));
     setFixedTracks([...tracks]);
     setAiFixes(null);
     setSavedId(null);
     setIsRunning(false);
   };
+
+  // ── Artwork QC ────────────────────────────────────────────────────
+  const handleArtworkUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setArtworkName(file.name);
+    setArtworkFile(file);
+    setArtworkTextResults(null);
+    setArtworkChecking(true);
+    try {
+      setArtworkResults(await checkArtworkFile(file));
+    } catch {
+      setArtworkResults([{ severity: "warning", rule: "artwork_error", message: "Couldn't analyse this image — try a different JPG or PNG." }]);
+    } finally {
+      setArtworkChecking(false);
+    }
+  };
+
+  const runArtworkTextScan = async () => {
+    if (!artworkFile) return;
+    setArtworkScanning(true);
+    try {
+      setArtworkTextResults(await scanArtworkText(artworkFile));
+    } catch {
+      setArtworkTextResults([{ severity: "warning", rule: "artwork_ocr_error", message: "Text scan failed to run — you can still check the artwork by eye for URLs or handles." }]);
+    } finally {
+      setArtworkScanning(false);
+    }
+  };
+
+  const toggleBatch = (i: number) =>
+    setExpandedBatch((prev) => {
+      const next = new Set(prev);
+      next.has(i) ? next.delete(i) : next.add(i);
+      return next;
+    });
 
   // Apply a single fix
   const applyFix = (result: ValidationResult) => {
@@ -385,32 +490,57 @@ export default function ValidatePage() {
       </div>
 
       {/* Mode selector */}
-      <div className="flex gap-2 mb-8">
-        {(["single", "multi", "csv"] as Mode[]).map((m) => (
+      <div className="flex flex-wrap gap-2 mb-4">
+        {(["single", "multi", "csv", "batch"] as Mode[]).map((m) => (
           <button
             key={m}
-            onClick={() => { setMode(m); setTracks(m === "csv" ? [] : [emptyTrack(1)]); setResults(null); }}
+            onClick={() => {
+              setMode(m);
+              setTracks(m === "csv" || m === "batch" ? [] : [emptyTrack(1)]);
+              setResults(null);
+              setBatch(null);
+            }}
             className={`px-5 py-2.5 rounded-lg text-sm font-medium border transition-all ${
               mode === m
                 ? "border-accent bg-accent/10 text-accent-bright"
                 : "border-border text-text-muted hover:border-border-bright hover:text-text"
             }`}
           >
-            {m === "single" ? "Single Track" : m === "multi" ? "Multi-Track" : "Upload CSV"}
+            {m === "single" ? "Single Track" : m === "multi" ? "Multi-Track" : m === "csv" ? "Upload CSV" : "Batch / Catalog"}
           </button>
         ))}
       </div>
 
-      {/* CSV Upload */}
-      {mode === "csv" && (
+      {/* Distributor profile selector */}
+      <div className="flex flex-wrap items-center gap-3 mb-8">
+        <label htmlFor="profile" className="text-xs font-mono text-text-dim">Distributor ruleset:</label>
+        <select
+          id="profile"
+          value={profileId}
+          onChange={(e) => { setProfileId(e.target.value); setResults(null); setBatch(null); }}
+          className="px-3 py-2 rounded-lg bg-surface border border-border text-sm text-text font-mono focus:outline-none focus:border-accent transition-colors"
+        >
+          {Object.values(PROFILES).map((p) => (
+            <option key={p.id} value={p.id}>{p.name}</option>
+          ))}
+        </select>
+        <span className="text-xs text-text-dim">tunes which checks are critical (e.g. DistroKid auto-assigns ISRC/UPC; Apple requires a producer credit).</span>
+      </div>
+
+      {/* CSV Upload (single-release CSV or batch/catalog) */}
+      {(mode === "csv" || mode === "batch") && (
         <div className="mb-6">
           <div
             className="rounded-xl border-2 border-dashed border-border hover:border-accent/50 transition-colors p-10 text-center cursor-pointer"
             onClick={() => fileInputRef.current?.click()}
           >
-            <p className="text-2xl mb-3">📂</p>
+            <p className="text-2xl mb-3">{mode === "batch" ? "🗂️" : "📂"}</p>
             <p className="text-text-muted text-sm mb-1">Click to upload or drag & drop your CSV</p>
-            <p className="text-xs font-mono text-text-dim">DistroKid, TuneCore, CD Baby export formats supported</p>
+            <p className="text-xs font-mono text-text-dim">
+              {mode === "batch"
+                ? "Multiple releases — rows are grouped into releases by album, each QC'd separately"
+                : "DistroKid, TuneCore, CD Baby export formats supported"}
+            </p>
             <input
               ref={fileInputRef}
               type="file"
@@ -421,16 +551,24 @@ export default function ValidatePage() {
             />
           </div>
           {csvError && <p className="mt-2 text-sm text-red font-mono">{csvError}</p>}
-          {tracks.length > 0 && (
+          {mode === "csv" && tracks.length > 0 && (
             <div className="mt-3 px-4 py-3 rounded-lg bg-green/10 border border-green/20">
               <p className="text-sm text-green font-mono">{tracks.length} tracks loaded from CSV</p>
+            </div>
+          )}
+          {mode === "batch" && batch && (
+            <div className="mt-3 px-4 py-3 rounded-lg bg-green/10 border border-green/20">
+              <p className="text-sm text-green font-mono">
+                {batch.length} release{batch.length === 1 ? "" : "s"} ·{" "}
+                {batch.reduce((n, b) => n + b.tracks.length, 0)} tracks loaded
+              </p>
             </div>
           )}
         </div>
       )}
 
       {/* Track forms */}
-      {(mode !== "csv" || tracks.length > 0) && (
+      {mode !== "batch" && (mode !== "csv" || tracks.length > 0) && (
         <div className="space-y-4 mb-6">
           {tracks.map((track, idx) => (
             <TrackForm
@@ -463,6 +601,114 @@ export default function ValidatePage() {
         >
           {isRunning ? "Scanning…" : "Run Validation →"}
         </button>
+      )}
+
+      {/* Artwork QC */}
+      {mode !== "batch" && (
+        <div className="mt-6 rounded-xl border border-border bg-bg-elevated p-5">
+          <div className="flex items-center justify-between gap-3 mb-3">
+            <div>
+              <h3 className="font-mono text-sm text-text">Artwork QC</h3>
+              <p className="text-xs text-text-dim mt-0.5">Cover art is rejected as often as metadata — check specs + scan for URLs/handles.</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => artworkInputRef.current?.click()}
+              className="shrink-0 px-4 py-2 rounded-lg bg-surface border border-border text-sm text-text-muted font-mono hover:text-text transition-colors"
+            >
+              {artworkName ? "Change image" : "Upload artwork"}
+            </button>
+            <input
+              ref={artworkInputRef}
+              type="file"
+              accept="image/jpeg,image/png"
+              aria-label="Upload cover artwork"
+              className="hidden"
+              onChange={handleArtworkUpload}
+            />
+          </div>
+          {artworkName && <p className="text-xs font-mono text-text-dim mb-3 truncate">{artworkName}</p>}
+          {artworkChecking && <p className="text-sm text-text-muted font-mono">Checking specs…</p>}
+          {artworkResults && (
+            <div className="space-y-2">
+              {artworkResults.map((a, i) => (
+                <ArtworkRow key={i} a={a} />
+              ))}
+            </div>
+          )}
+          {artworkResults && (
+            <div className="mt-3 flex items-center gap-3">
+              <button
+                type="button"
+                onClick={runArtworkTextScan}
+                disabled={artworkScanning}
+                className="px-4 py-2 rounded-lg bg-accent/10 text-accent-bright border border-accent/20 text-xs font-mono hover:bg-accent/20 transition-colors disabled:opacity-50"
+              >
+                {artworkScanning ? "Scanning text…" : "Scan for URLs / handles (OCR)"}
+              </button>
+              <span className="text-xs text-text-dim">runs in your browser; first scan loads the OCR engine.</span>
+            </div>
+          )}
+          {artworkTextResults && (
+            <div className="mt-3 space-y-2">
+              {artworkTextResults.map((a, i) => (
+                <ArtworkRow key={i} a={a} />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Batch / catalog results */}
+      {mode === "batch" && batch && (
+        <div className="mt-8 space-y-3">
+          <div className="flex items-center justify-between">
+            <h2 className="font-display text-2xl text-text">Catalog QC</h2>
+            <button
+              onClick={() => exportCsv(batch.flatMap((b) => b.tracks))}
+              className="px-4 py-2 rounded-lg bg-surface border border-border text-sm text-text-muted font-mono hover:text-text transition-colors"
+            >
+              Export all CSV
+            </button>
+          </div>
+          {batch.map((rel, i) => {
+            const crit = rel.results.filter((r) => r.severity === "critical").length;
+            const warn = rel.results.filter((r) => r.severity === "warning").length;
+            const sugg = rel.results.filter((r) => r.severity === "suggestion").length;
+            const open = expandedBatch.has(i);
+            return (
+              <div key={i} className="rounded-xl border border-border bg-bg-card overflow-hidden">
+                <button
+                  onClick={() => toggleBatch(i)}
+                  className="w-full flex items-center gap-4 p-4 text-left hover:bg-surface/40 transition-colors"
+                >
+                  <span className={`w-11 h-11 rounded-xl flex items-center justify-center text-xl font-bold font-display shrink-0 ${GRADE_DISPLAY[rel.grade.letter]?.bg ?? "bg-surface"} ${GRADE_DISPLAY[rel.grade.letter]?.text ?? "text-text-muted"}`}>
+                    {rel.grade.letter}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm text-text font-medium truncate">{rel.title}</p>
+                    <p className="text-xs font-mono text-text-dim">
+                      {rel.tracks.length} track{rel.tracks.length === 1 ? "" : "s"} ·{" "}
+                      <span className="text-red">{crit} critical</span> ·{" "}
+                      <span className="text-amber">{warn} warnings</span> ·{" "}
+                      <span className="text-blue">{sugg} suggestions</span>
+                    </p>
+                  </div>
+                  <span className="text-text-dim text-xs font-mono shrink-0">{open ? "▲" : "▼"}</span>
+                </button>
+                {open && (
+                  <div className="px-4 pb-4 space-y-2 border-t border-border pt-3">
+                    {rel.results.length === 0 ? (
+                      <p className="text-sm text-text-muted font-mono">No issues found.</p>
+                    ) : (
+                      rel.results.map((result, j) => <ResultCard key={j} result={result} />)
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
       )}
 
       {/* Results */}

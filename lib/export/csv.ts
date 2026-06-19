@@ -10,6 +10,8 @@ const COLUMNS: { key: keyof TrackMeta; header: string }[] = [
   { key: "genre", header: "Genre" },
   { key: "releaseDate", header: "Release Date" },
   { key: "songwriters", header: "Songwriters" },
+  { key: "splits", header: "Splits" },
+  { key: "iswc", header: "ISWC" },
   { key: "producers", header: "Producers" },
   { key: "composers", header: "Composers" },
   { key: "copyright", header: "Copyright" },
