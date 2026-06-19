@@ -1,13 +1,89 @@
 # CLAUDE.md — MetaCheck: Build the Functional Tool
 
-## Status (updated 18 June 2026)
+## Status (updated 19 June 2026)
 
-**All 9 build phases are complete. The codebase compiles cleanly (`npm run build` ✓).**
-The app is ready for environment setup and deployment. See **Next Steps** at the bottom.
+**All 9 build phases complete + a major modernization/feature/hardening pass.
+`npm run build` ✓. LIVE in production on Vercel (`metacheck-ten.vercel.app`).**
 
 The core metadata-checking feature was audited and substantially expanded on
-18 June 2026 — see **Metadata-checking audit & feature pass** below for the new
-rules, distributor profiles, artwork QC, and batch mode.
+18 June 2026 — see **Metadata-checking audit & feature pass** below. On 19 June
+2026 the UI was modernized and a large set of features + backend hardening shipped
+— see **19 June 2026 pass** immediately below.
+
+---
+
+## 19 June 2026 — Modernization, new features, admin & hardening
+
+Shipped to `main` (Vercel production). All adversarially reviewed (multi-agent
+review workflows) and the engine changes verified with behavioral test harnesses.
+
+### UI / UX
+- Apple-minimal **landing page** rework (clear value prop, outcomes strip, scroll
+  reveals, route transitions, hover/press micro-interactions) — motion lives in
+  `app/globals.css` + `app/_components/Reveal.tsx`; **reduced-motion + no-JS safe**.
+- **Inline SVG icon set** (`app/_components/icons.tsx`) replaces all emoji/unicode
+  glyphs. App route transition via `app/(app)/template.tsx`.
+
+### Validation engine (still 100% client-side, `lib/validation/rules.ts`)
+- **~20 Reddit-sourced rules** added: broadened feat-in-title (feat./ft./featuring
+  only — NOT bare "with"), banned/promo/store words + URLs in title, keyword-
+  stuffing, decorative-unicode (NFC-normalized, excludes ℗/™ + accents),
+  bracket balance, ISRC↔UPC swap detection, UPC GS1 check-digit, placeholder
+  credits (TBD/N/A, Apple-critical), generic-genre, sub-30s/royalty-farming/
+  functional-length duration, explicit↔profanity mismatch, language/charset,
+  artist casing-only profile-split, generic SEO artist name, SoundExchange
+  reminder, missing/same-day release-date + `reviewLeadDays`-aware pitch window.
+  Version descriptors split into a strong (standalone) set + a weak set that needs
+  a qualifier prefix ("Radio Edit"), to avoid mangling titles like "Club Mix".
+- **Sync-Ready score** (`lib/validation/sync.ts`) — 0–100 music-supervision
+  readiness across clearable / usable / discoverable. Opt-in panel on `/validate`.
+- **AI-disclosure** — `aiDisclosure` on `TrackMeta`; `aiPolicy` per
+  `DistributorProfile` (CD Baby `ban`, TuneCore `restricted`, others `disclose`).
+
+### Onboarding + AI value (free→paid conversion)
+- One-click **sample release** + **paste-a-row** on `/validate`; **demo→signup
+  handoff** via localStorage; dashboard `?sample=1` deep-link.
+- **Free AI taste**: free tier now gets **1 AI fix/month** (`FREE_AI_TASTE` in
+  `lib/auth/index.ts`); exhaustion → in-context `UpgradeCard`.
+- AI fixes return a **"what this costs you" impact** line; new **AI Submission
+  Readiness Brief** (`app/api/ai/brief/route.ts`) — verdict + money-at-risk + fix
+  order. Both reuse the same Vertex client / gating / rule-fallback as `/api/ai/fix`.
+
+### Admin dashboard
+- `app/(app)/admin/page.tsx` — **deny-by-default**, gated by `ADMIN_USER_IDS` /
+  `ADMIN_EMAILS` (`lib/auth/admin.ts`); sidebar link shown only to admins. KPIs
+  (users, est. MRR, validations + AI calls/mo = credit-burn proxy), tier
+  breakdown, recent signups/releases, ops "what to watch" panel.
+
+### Backend hardening (activated by migration 004)
+- **Atomic AI-quota reservation** (`consume_ai_call` RPC + `reserveAiCall`/
+  `refundAiCall`) closes a TOCTOU race on the free taste; refunds on rules-fallback.
+- **Webhook idempotency** (`webhook_events` table + `lib/webhooks.ts`) — Stripe/
+  PayPal replays no longer double-grant credits. `addCredits` now THROWS on
+  error/no-row so a failed paid grant retries (was silently dropped).
+- **Global anonymous-AI daily budget** (IP-rotation-proof) in `/api/ai/fix`.
+- **Security headers** in `next.config.ts` (HSTS, X-Frame-Options DENY, nosniff,
+  Referrer-Policy, Permissions-Policy). CSP deferred (needs allowlist).
+- All hardening **degrades gracefully** until `004_hardening.sql` is applied
+  (RPC/table absent → prior behavior), so the code was safe to deploy first.
+
+### CI
+- `.github/workflows/ci.yml` (lint + tsc + build on PR/push).
+- `.github/workflows/claude-review.yml` (auto Claude PR review — needs the Claude
+  GitHub App + `ANTHROPIC_API_KEY` secret; **only for PR review, not the app**).
+
+### AI / Vertex note
+- Prod AI = **keyless Vertex via Workload Identity Federation** (no SA key;
+  `GEMINI_API_KEY` removed from prod, only on preview). Model order in
+  `lib/ai/gemini.ts` leads with **`gemini-2.5-flash`** — the 3.x names were failing
+  on every call in this Vertex project (logs showed it). Override via `GEMINI_MODELS`.
+
+### New env vars / operator steps (19 June)
+- **Run `supabase/migrations/004_hardening.sql`** to activate the AI-quota race fix
+  + webhook idempotency.
+- Set `ADMIN_USER_IDS` (Clerk id) and/or `ADMIN_EMAILS` to unlock `/admin`.
+- _(optional)_ `ANTHROPIC_API_KEY` + Claude GitHub App for auto PR review.
+- `migrations/003_usage_and_credits.sql` and `004_hardening.sql` must be applied.
 
 ### Phase completion
 
@@ -160,9 +236,12 @@ This is a Next.js 15 (App Router) project.
 - **Auth**: Clerk (`@clerk/nextjs`)
 - **Database**: Supabase (Postgres + RLS). Use `@supabase/ssr` for server/client.
 - **Payments**: Stripe subscriptions (`stripe` SDK)
-- **AI**: Google Gemini API (`@google/generative-ai`) — model: `gemini-2.0-flash`.
-  (Earlier drafts of this doc referenced Anthropic Claude; the *implemented* engine is Gemini.
-  Use `GEMINI_API_KEY`, not `ANTHROPIC_API_KEY`.)
+- **AI**: Google **Vertex AI / Gemini** via `@google/genai` (`lib/ai/gemini.ts`).
+  Production uses **keyless Vertex (Workload Identity Federation)** drawing the GCP
+  credit — no SA key, and `GEMINI_API_KEY` is NOT set in prod (only preview).
+  Model order leads with `gemini-2.5-flash` (override via `GEMINI_MODELS`); the old
+  `gemini-2.0-flash` was retired. `ANTHROPIC_API_KEY` is unrelated to the app — it
+  only powers the optional Claude PR-review GitHub Action.
 - **Styling**: Tailwind CSS v4 (already configured). Dark theme with teal accent (`#0d9488`).
 - **File parsing**: `papaparse` for CSV parsing
 - **PDF export**: `@react-pdf/renderer` or `jspdf` for generating clean PDF reports
