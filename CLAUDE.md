@@ -11,8 +11,46 @@ The core metadata-checking feature was audited and substantially expanded on
 18 June 2026 — see **Metadata-checking audit & feature pass** below. On 19 June
 2026 the UI was modernized and a large set of features + backend hardening shipped
 — see **19 June 2026 pass**. On 20 June 2026 the landing page got its final
-"Robinhood-style" redesign + a Playwright e2e suite, and an audit-follow-ups bug
-pass shipped — see **20 June 2026 pass** immediately below.
+"Robinhood-style" redesign + a Playwright e2e suite, an audit-follow-ups bug
+pass, and an **onboarding/paywall funnel pass** shipped — see the **20 June 2026**
+sections immediately below.
+
+---
+
+## 20 June 2026 — Onboarding + paywall funnel pass
+
+Shipped to `main` (Vercel production), UI-only — `npm run build` ✓. Triggered by a
+review of the end-to-end customer experience (first landing visit → demo → sign-up
+→ first validation → upgrade).
+
+**Key finding: monetization is wired end-to-end, NOT stubbed.** Real Stripe + PayPal
+checkout sessions, signature-verified idempotent webhooks → `users.tier`, server-side
+gating (`canValidate`/`canUseAI`), atomic AI-credit consume/refund. Checkout CTAs hit
+real routes; nothing 404s. The gaps were funnel/UX, so all fixes are UI-only — **no
+billing/webhook/gating code was touched.**
+
+### Fixes (5 files)
+- **Demo → signup conversion bridge** (`app/demo.tsx`) — the live demo delivers the
+  "aha" but had no exit to sign-up (the biggest funnel leak). Added a CTA strip below
+  the results; copy adapts to clean vs. issue-found. The checked release is already
+  stashed in `localStorage` (`metacheck_pending_release`) by `selectTrack`, so
+  `/validate` **resumes** it after auth instead of restarting.
+- **Honest anonymous-AI nudge** (`app/demo.tsx`) — the public demo's "Fix with AI"
+  serves deterministic rule-based fixes (`source: "rules"`), not real AI. It now shows
+  a "Sign up for AI-written fixes" lock label (driven by `aiRanRules`) instead of
+  silently presenting them as "AI suggestions".
+- **Free-tier AI value made honest + consistent** — free actually gets 1 AI fix/month
+  (`FREE_AI_TASTE`), but the UI said "No AI" / implied zero. Fixed in
+  `app/(app)/dashboard/page.tsx` (`aiLimit` free `0`→`1` + used/remaining copy),
+  `app/(app)/settings/page.tsx` (plan line), and `app/page.tsx` (landing Free plan
+  now lists "1 AI fix per month").
+- **Free `/release-planner` surfaced in nav** (`app/_components/SiteNav.tsx`) — was
+  footer-only; now a top-of-funnel "Free planner" link.
+
+### Operator step (PayPal only — code can't do it)
+- In the PayPal dashboard, set each subscription Plan's **return URL** to
+  `{APP_URL}/settings?paypal=success` so the post-approval success banner shows.
+  Stripe already handles this via `success_url`. **No new env vars, no migrations.**
 
 ---
 
