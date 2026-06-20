@@ -12,7 +12,8 @@ import { classifyPermanence, preflightVerdict, type PermanenceLevel } from "@/li
 import { diffMigration } from "@/lib/validation/migration";
 import { checkAudioFile, type AudioReport } from "@/lib/audio/check";
 import { exportCsv } from "@/lib/export/csv";
-import { IconCheck, IconClapper, IconArrowRight, IconUpload, IconChevronDown, IconBolt, IconSparkles, IconFingerprint } from "@/app/_components/icons";
+import { exportSplitSheet, parseSplitParties } from "@/lib/export/splitSheet";
+import { IconCheck, IconClapper, IconArrowRight, IconUpload, IconChevronDown, IconBolt, IconSparkles, IconFingerprint, IconPen } from "@/app/_components/icons";
 
 // ── CSV column auto-mapping ───────────────────────────────────────────────────
 const CSV_MAP: Record<string, keyof TrackMeta> = {
@@ -681,6 +682,56 @@ function MigrationPanel({ newTrack }: { newTrack: TrackMeta }) {
   );
 }
 
+// ── Split-sheet panel (sign who-owns-what before release) ─────────────────────
+function SplitSheetPanel({ track }: { track: TrackMeta }) {
+  const parties = parseSplitParties(track.splits || "");
+  const total = parties.reduce((s, p) => s + (p.share ?? 0), 0);
+  const hasShares = parties.some((p) => p.share != null);
+  const balanced = hasShares && Math.abs(total - 100) < 0.5;
+  const hasWriters = !!(track.songwriters?.trim() || track.splits?.trim() || track.composers?.trim());
+
+  return (
+    <div className="mt-5 pt-5 border-t border-border space-y-4">
+      {!hasWriters ? (
+        <p className="text-sm text-text-muted">
+          Add your <span className="text-text">Songwriters</span> and <span className="text-text">Writer Splits</span> in the form above,
+          then generate a split sheet to sign with every co-writer before you release.
+        </p>
+      ) : (
+        <>
+          {parties.length > 0 && (
+            <div className="space-y-2">
+              {parties.map((p, i) => (
+                <div key={i} className="flex items-center justify-between rounded-lg border border-border bg-surface/40 px-4 py-2.5">
+                  <span className="text-sm text-text">{p.name || "Unnamed writer"}</span>
+                  <span className={`text-sm nums ${p.share == null ? "text-text-dim" : "text-text-muted"}`}>{p.share == null ? "share —" : `${p.share}%`}</span>
+                </div>
+              ))}
+              <div className="flex items-center justify-between px-4 pt-1">
+                <span className="text-xs text-text-dim">Total</span>
+                <span className={`text-sm font-semibold nums ${balanced ? "text-green-400" : "text-amber"}`}>
+                  {total}%{balanced ? "" : " · writer splits should total 100%"}
+                </span>
+              </div>
+            </div>
+          )}
+          <button
+            type="button"
+            onClick={() =>
+              exportSplitSheet(track, `${(track.title || "split-sheet").replace(/[^a-z0-9]+/gi, "-").toLowerCase()}-split-sheet.pdf`)
+                .catch(() => alert("Couldn't generate the PDF — please try again."))
+            }
+            className="press inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-accent text-white text-sm font-semibold hover:bg-accent-bright transition-colors"
+          >
+            <IconPen size={15} /> Download split sheet (PDF)
+          </button>
+          <p className="text-[11px] text-text-dim">Print it, sign with every co-writer, and keep it with your release records — before you distribute. This is what prevents the fight after the money lands.</p>
+        </>
+      )}
+    </div>
+  );
+}
+
 // ── Main page ─────────────────────────────────────────────────────────────────
 type Mode = "single" | "multi" | "csv" | "batch";
 
@@ -795,6 +846,8 @@ export default function ValidatePage() {
   const [showSync, setShowSync] = useState(false);
   // Migration Pre-Flight panel — opt-in (only relevant when switching distributors).
   const [showMigration, setShowMigration] = useState(false);
+  // Split-sheet panel — opt-in.
+  const [showSplitSheet, setShowSplitSheet] = useState(false);
   // Onboarding: paste-a-row box + "picked up where you left off" handoff banner.
   const [showPaste, setShowPaste] = useState(false);
   const [pasteText, setPasteText] = useState("");
@@ -1457,6 +1510,34 @@ export default function ValidatePage() {
             </span>
           </button>
           {showMigration && <MigrationPanel newTrack={tracks[0] ?? emptyTrack(1)} />}
+        </div>
+      )}
+
+      {/* Split sheet (sign who-owns-what before release) */}
+      {mode !== "batch" && tracks.length > 0 && (
+        <div className="mt-6 rounded-2xl border border-border bg-bg-elevated p-5">
+          <button
+            type="button"
+            onClick={() => setShowSplitSheet((v) => !v)}
+            className="w-full flex items-center gap-3 text-left"
+          >
+            <span className="w-9 h-9 rounded-lg bg-accent/10 text-accent-bright flex items-center justify-center shrink-0">
+              <IconPen size={18} />
+            </span>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2">
+                <h3 className="text-sm font-medium text-text">Split sheet</h3>
+                <span className="text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded bg-accent/10 text-accent-bright border border-accent/20">New</span>
+              </div>
+              <p className="text-xs text-text-dim mt-0.5">
+                Generate a signable split sheet from your writers &amp; shares. {showSplitSheet ? "" : "Tap to open."}
+              </p>
+            </div>
+            <span className={`text-text-dim transition-transform duration-300 ${showSplitSheet ? "rotate-90" : ""}`}>
+              <IconArrowRight size={18} />
+            </span>
+          </button>
+          {showSplitSheet && <SplitSheetPanel track={tracks[0] ?? emptyTrack(1)} />}
         </div>
       )}
 
