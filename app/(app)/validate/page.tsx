@@ -132,11 +132,13 @@ function resolveFieldKey(field: string): keyof TrackMeta | undefined {
   );
 }
 
-// ── Severity badge styles ─────────────────────────────────────────────────────
-const SEV: Record<string, { badge: string; dotClass: string; border: string }> = {
-  critical: { badge: "text-[#fda4af] bg-red-950/40", dotClass: "bg-rose-500", border: "border-red-500/20" },
-  warning: { badge: "text-[#fcd34d] bg-amber-950/40", dotClass: "bg-amber-500", border: "border-amber-500/20" },
-  suggestion: { badge: "text-[#93c5fd] bg-blue-950/40", dotClass: "bg-blue-500", border: "border-blue-500/20" },
+// ── Severity styles ───────────────────────────────────────────────────────────
+// Calm, token-based treatment: a single coloured dot + muted label, no saturated
+// "badge soup". Borders carry only a whisper of the severity hue.
+const SEV: Record<string, { dot: string; label: string; border: string }> = {
+  critical: { dot: "bg-red", label: "text-red", border: "border-red/15" },
+  warning: { dot: "bg-amber", label: "text-amber", border: "border-amber/15" },
+  suggestion: { dot: "bg-blue", label: "text-blue", border: "border-blue/15" },
 };
 
 // ── Grade display classes ─────────────────────────────────────────────
@@ -182,7 +184,7 @@ function TrackForm({
               value={(track[f.key] as string) ?? ""}
               onChange={(e) => onChange(idx, f.key, e.target.value)}
               placeholder={f.placeholder}
-              className="w-full px-3 py-2 rounded-lg bg-surface border border-border text-sm text-text placeholder-text-dim focus:outline-none focus:border-accent transition-colors font-mono"
+              className="w-full px-3 py-2 rounded-lg bg-surface border border-border text-sm text-text placeholder-text-dim focus:outline-none focus:border-accent transition-colors"
             />
           </div>
         ))}
@@ -200,23 +202,22 @@ function ResultCard({
 }) {
   const s = SEV[result.severity];
   return (
-    <div className={`rounded-lg border p-4 ${s.border} bg-bg-elevated`}>
+    <div className={`rounded-xl border p-4 ${s.border} bg-bg-elevated`}>
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-start gap-3 flex-1 min-w-0">
-          <span className={`mt-0.5 w-2 h-2 rounded-full shrink-0 ${s.dotClass}`} />
+          <span className={`mt-1.5 w-2 h-2 rounded-full shrink-0 ${s.dot}`} />
           <div className="min-w-0">
             <div className="flex items-center gap-2 flex-wrap mb-1">
-              <span className={`text-xs font-mono px-2 py-0.5 rounded ${s.badge}`}>
-                {result.severity}
-              </span>
-              <span className="text-xs font-mono text-text-dim">{result.field}</span>
+              <span className={`text-xs font-medium capitalize ${s.label}`}>{result.severity}</span>
+              <span className="text-xs text-text-dim">·</span>
+              <span className="text-xs text-text-muted">{result.field}</span>
               {result.trackIndex !== undefined && (
-                <span className="text-xs font-mono text-text-dim">track {result.trackIndex + 1}</span>
+                <span className="text-xs text-text-dim">track {result.trackIndex + 1}</span>
               )}
             </div>
             <p className="text-sm text-text leading-relaxed">{result.message}</p>
             {result.suggestion && (
-              <p className="text-xs text-text-muted mt-1 font-mono">
+              <p className="text-xs text-text-muted mt-1.5 font-mono">
                 <span className="text-accent-bright">→</span> {result.suggestion}
               </p>
             )}
@@ -411,7 +412,7 @@ function SyncPanel({
       {/* What's missing */}
       {unmet.length > 0 && (
         <div className="space-y-2">
-          <p className="text-xs text-text-dim uppercase tracking-wider">To raise the score</p>
+          <p className="eyebrow">To raise the score</p>
           {unmet.map((c, i) => (
             <div key={i} className="flex items-start gap-3 rounded-lg border border-border bg-bg-elevated px-4 py-3">
               <span className={`mt-1.5 w-2 h-2 rounded-full shrink-0 ${
@@ -648,7 +649,7 @@ export default function ValidatePage() {
   const toggleBatch = (i: number) =>
     setExpandedBatch((prev) => {
       const next = new Set(prev);
-      next.has(i) ? next.delete(i) : next.add(i);
+      if (next.has(i)) next.delete(i); else next.add(i);
       return next;
     });
 
@@ -807,10 +808,10 @@ export default function ValidatePage() {
   const fixableCount = results?.filter((r) => r.fixable && !r._fixed).length ?? 0;
 
   return (
-    <div className="max-w-4xl mx-auto px-6 py-10">
-      <div className="mb-8">
-        <h1 className="font-display text-3xl text-text mb-2">Validate Release</h1>
-        <p className="text-text-muted text-sm">Scan your metadata for errors before submitting to your distributor.</p>
+    <div className="max-w-4xl mx-auto px-6 py-12">
+      <div className="mb-10">
+        <h1 className="font-display text-4xl text-text mb-2 tracking-tight">Validate release</h1>
+        <p className="text-text-muted">Scan your metadata for errors before submitting to your distributor.</p>
       </div>
 
       {/* Mode selector */}
@@ -837,18 +838,18 @@ export default function ValidatePage() {
 
       {/* Distributor profile selector */}
       <div className="flex flex-wrap items-center gap-3 mb-8">
-        <label htmlFor="profile" className="text-xs font-mono text-text-dim">Distributor ruleset:</label>
+        <label htmlFor="profile" className="text-sm text-text-muted">Distributor ruleset</label>
         <select
           id="profile"
           value={profileId}
           onChange={(e) => { setProfileId(e.target.value); setResults(null); setBatch(null); }}
-          className="px-3 py-2 rounded-lg bg-surface border border-border text-sm text-text font-mono focus:outline-none focus:border-accent transition-colors"
+          className="px-3 py-2 rounded-lg bg-surface border border-border text-sm text-text focus:outline-none focus:border-accent transition-colors"
         >
           {Object.values(PROFILES).map((p) => (
             <option key={p.id} value={p.id}>{p.name}</option>
           ))}
         </select>
-        <span className="text-xs text-text-dim">tunes which checks are critical (e.g. DistroKid auto-assigns ISRC/UPC; Apple requires a producer credit).</span>
+        <span className="text-xs text-text-dim">Tunes which checks count as critical.</span>
       </div>
 
       {/* CSV Upload (single-release CSV or batch/catalog) */}
@@ -876,15 +877,15 @@ export default function ValidatePage() {
               onChange={handleCsvUpload}
             />
           </div>
-          {csvError && <p className="mt-2 text-sm text-red font-mono">{csvError}</p>}
+          {csvError && <p className="mt-2 text-sm text-red">{csvError}</p>}
           {mode === "csv" && tracks.length > 0 && (
             <div className="mt-3 px-4 py-3 rounded-lg bg-green/10 border border-green/20">
-              <p className="text-sm text-green font-mono">{tracks.length} tracks loaded from CSV</p>
+              <p className="text-sm text-green">{tracks.length} tracks loaded from CSV</p>
             </div>
           )}
           {mode === "batch" && batch && (
             <div className="mt-3 px-4 py-3 rounded-lg bg-green/10 border border-green/20">
-              <p className="text-sm text-green font-mono">
+              <p className="text-sm text-green">
                 {batch.length} release{batch.length === 1 ? "" : "s"} ·{" "}
                 {batch.reduce((n, b) => n + b.tracks.length, 0)} tracks loaded
               </p>
@@ -954,9 +955,9 @@ export default function ValidatePage() {
             <button
               type="button"
               onClick={addTrack}
-              className="w-full py-3 rounded-xl border border-dashed border-border-bright text-sm text-text-muted hover:text-text hover:border-accent/50 transition-all font-mono"
+              className="w-full py-3 rounded-xl border border-dashed border-border-bright text-sm text-text-muted hover:text-text hover:border-accent/50 transition-all"
             >
-              + Add Track
+              + Add track
             </button>
           )}
         </div>
@@ -978,13 +979,13 @@ export default function ValidatePage() {
         <div className="mt-6 rounded-xl border border-border bg-bg-elevated p-5">
           <div className="flex items-center justify-between gap-3 mb-3">
             <div>
-              <h3 className="font-mono text-sm text-text">Artwork QC</h3>
+              <h3 className="text-sm font-medium text-text">Artwork QC</h3>
               <p className="text-xs text-text-dim mt-0.5">Cover art is rejected as often as metadata — check specs + scan for URLs/handles.</p>
             </div>
             <button
               type="button"
               onClick={() => artworkInputRef.current?.click()}
-              className="shrink-0 px-4 py-2 rounded-lg bg-surface border border-border text-sm text-text-muted font-mono hover:text-text transition-colors"
+              className="press shrink-0 px-4 py-2 rounded-lg bg-surface border border-border text-sm text-text-muted hover:text-text transition-colors"
             >
               {artworkName ? "Change image" : "Upload artwork"}
             </button>
@@ -998,7 +999,7 @@ export default function ValidatePage() {
             />
           </div>
           {artworkName && <p className="text-xs font-mono text-text-dim mb-3 truncate">{artworkName}</p>}
-          {artworkChecking && <p className="text-sm text-text-muted font-mono">Checking specs…</p>}
+          {artworkChecking && <p className="text-sm text-text-muted">Checking specs…</p>}
           {artworkResults && (
             <div className="space-y-2">
               {artworkResults.map((a, i) => (
@@ -1012,7 +1013,7 @@ export default function ValidatePage() {
                 type="button"
                 onClick={runArtworkTextScan}
                 disabled={artworkScanning}
-                className="px-4 py-2 rounded-lg bg-accent/10 text-accent-bright border border-accent/20 text-xs font-mono hover:bg-accent/20 transition-colors disabled:opacity-50"
+                className="press px-4 py-2 rounded-lg bg-accent/10 text-accent-bright border border-accent/20 text-xs font-medium hover:bg-accent/20 transition-colors disabled:opacity-50"
               >
                 {artworkScanning ? "Scanning text…" : "Scan for URLs / handles (OCR)"}
               </button>
@@ -1065,10 +1066,10 @@ export default function ValidatePage() {
       {mode === "batch" && batch && (
         <div className="mt-8 space-y-3">
           <div className="flex items-center justify-between">
-            <h2 className="font-display text-2xl text-text">Catalog QC</h2>
+            <h2 className="font-display text-2xl text-text tracking-tight">Catalog QC</h2>
             <button
               onClick={() => exportCsv(batch.flatMap((b) => b.tracks))}
-              className="px-4 py-2 rounded-lg bg-surface border border-border text-sm text-text-muted font-mono hover:text-text transition-colors"
+              className="press px-4 py-2 rounded-lg bg-surface border border-border text-sm text-text-muted hover:text-text transition-colors"
             >
               Export all CSV
             </button>
@@ -1089,7 +1090,7 @@ export default function ValidatePage() {
                   </span>
                   <div className="min-w-0 flex-1">
                     <p className="text-sm text-text font-medium truncate">{rel.title}</p>
-                    <p className="text-xs font-mono text-text-dim">
+                    <p className="text-xs text-text-dim nums">
                       {rel.tracks.length} track{rel.tracks.length === 1 ? "" : "s"} ·{" "}
                       <span className="text-red">{crit} critical</span> ·{" "}
                       <span className="text-amber">{warn} warnings</span> ·{" "}
@@ -1101,7 +1102,7 @@ export default function ValidatePage() {
                 {open && (
                   <div className="px-4 pb-4 space-y-2 border-t border-border pt-3">
                     {rel.results.length === 0 ? (
-                      <p className="text-sm text-text-muted font-mono">No issues found.</p>
+                      <p className="text-sm text-text-muted">No issues found.</p>
                     ) : (
                       rel.results.map((result, j) => <ResultCard key={j} result={result} />)
                     )}
@@ -1124,8 +1125,8 @@ export default function ValidatePage() {
               {grade.letter}
             </div>
             <div>
-              <h2 className="font-display text-2xl text-text mb-1">{grade.label}</h2>
-              <p className="text-sm font-mono text-text-muted">
+              <h2 className="font-display text-2xl text-text mb-1 tracking-tight">{grade.label}</h2>
+              <p className="text-sm text-text-muted nums">
                 <span className="text-red">{criticals.length} critical</span>
                 {" · "}
                 <span className="text-amber">{warnings.length} warnings</span>
@@ -1139,14 +1140,14 @@ export default function ValidatePage() {
               {fixableCount > 0 && (
                 <button
                   onClick={applyAllFixes}
-                  className="px-4 py-2 rounded-lg bg-accent/10 text-accent-bright border border-accent/20 text-sm font-mono hover:bg-accent/20 transition-colors"
+                  className="press px-4 py-2 rounded-lg bg-accent/10 text-accent-bright border border-accent/20 text-sm font-medium hover:bg-accent/20 transition-colors"
                 >
-                  Auto-fix All ({fixableCount})
+                  Auto-fix all ({fixableCount})
                 </button>
               )}
               <button
                 onClick={() => exportCsv(fixedTracks)}
-                className="px-4 py-2 rounded-lg bg-surface border border-border text-sm text-text-muted font-mono hover:text-text transition-colors"
+                className="press px-4 py-2 rounded-lg bg-surface border border-border text-sm text-text-muted hover:text-text transition-colors"
               >
                 Export CSV
               </button>
@@ -1154,9 +1155,9 @@ export default function ValidatePage() {
                 <button
                   onClick={saveToHistory}
                   disabled={saving}
-                  className="px-4 py-2 rounded-lg bg-surface border border-border text-sm text-text-muted font-mono hover:text-text transition-colors disabled:opacity-50"
+                  className="press px-4 py-2 rounded-lg bg-surface border border-border text-sm text-text-muted hover:text-text transition-colors disabled:opacity-50"
                 >
-                  {saving ? "Saving…" : "Save to History"}
+                  {saving ? "Saving…" : "Save to history"}
                 </button>
               ) : (
                 <a
@@ -1205,7 +1206,7 @@ export default function ValidatePage() {
                 {brief.summary && <p className="text-sm text-text-muted leading-relaxed">{brief.summary}</p>}
                 {Array.isArray(brief.exposure) && brief.exposure.length > 0 && (
                   <div>
-                    <p className="text-xs text-text-dim uppercase tracking-wider mb-2">What it costs you</p>
+                    <p className="eyebrow mb-2">What it costs you</p>
                     <div className="space-y-2">
                       {brief.exposure.map((e, i) => (
                         <div key={i} className="rounded-lg border border-border bg-surface/40 px-4 py-3">
@@ -1218,7 +1219,7 @@ export default function ValidatePage() {
                 )}
                 {Array.isArray(brief.fixOrder) && brief.fixOrder.length > 0 && (
                   <div>
-                    <p className="text-xs text-text-dim uppercase tracking-wider mb-2">Fix in this order</p>
+                    <p className="eyebrow mb-2">Fix in this order</p>
                     <ol className="space-y-1.5">
                       {brief.fixOrder.map((f, i) => (
                         <li key={i} className="flex gap-2.5 text-sm text-text-muted">
@@ -1251,28 +1252,28 @@ export default function ValidatePage() {
             {aiUpgrade && <UpgradeCard context="fix" />}
             {aiImpact && !aiUpgrade && (
               <div className="mb-3 rounded-lg border border-amber/20 bg-amber/5 px-4 py-3">
-                <p className="text-xs text-amber font-medium uppercase tracking-wider mb-1">What this costs you</p>
+                <p className="text-[11px] text-amber font-medium uppercase tracking-[0.12em] mb-1">What this costs you</p>
                 <p className="text-sm text-text-muted leading-relaxed">{aiImpact}</p>
               </div>
             )}
             {aiFixes && aiFixes.length === 0 && (
-              <p className="text-sm text-text-muted font-mono">No additional AI suggestions — metadata looks good!</p>
+              <p className="text-sm text-text-muted">No additional AI suggestions — metadata looks good.</p>
             )}
             {aiFixes && aiFixes.length > 0 && (
               <div className="space-y-3">
                 {aiFixes.map((fix, i) => (
-                  <div key={i} className="rounded-lg border border-border bg-surface p-4 flex items-start justify-between gap-4">
+                  <div key={i} className="rounded-xl border border-border bg-surface p-4 flex items-start justify-between gap-4">
                     <div className="min-w-0">
-                      <p className="text-xs font-mono text-text-dim mb-1">
+                      <p className="text-xs text-text-dim mb-1.5">
                         Track {fix.trackIndex + 1} · {fix.field}
                       </p>
                       <p className="text-sm text-text-muted line-through mb-0.5 font-mono">{fix.original}</p>
                       <p className="text-sm text-accent-bright font-mono">{fix.fixed}</p>
-                      <p className="text-xs text-text-dim mt-1">{fix.reason}</p>
+                      <p className="text-xs text-text-dim mt-1.5">{fix.reason}</p>
                     </div>
                     <button
                       onClick={() => applyAiFix(fix)}
-                      className="shrink-0 text-xs px-3 py-1.5 rounded-lg bg-accent/10 text-accent-bright border border-accent/20 hover:bg-accent/20 transition-colors font-mono"
+                      className="press shrink-0 text-xs px-3 py-1.5 rounded-lg bg-accent/10 text-accent-bright border border-accent/20 hover:bg-accent/20 transition-colors"
                     >
                       Apply
                     </button>
@@ -1288,10 +1289,10 @@ export default function ValidatePage() {
             if (!items.length) return null;
             return (
               <div key={sev}>
-                <h3 className="flex items-center gap-2 text-xs text-text-dim uppercase tracking-widest mb-3">
-                  <span className={`w-2 h-2 rounded-full ${sev === "critical" ? "bg-rose-500" : sev === "warning" ? "bg-amber-500" : "bg-blue-500"}`} />
-                  {sev === "critical" ? "Critical Issues" : sev === "warning" ? "Warnings" : "Suggestions"}
-                  <span className="normal-case text-text-dim/70">({items.length})</span>
+                <h3 className="flex items-center gap-2 eyebrow mb-3">
+                  <span className={`w-2 h-2 rounded-full ${sev === "critical" ? "bg-red" : sev === "warning" ? "bg-amber" : "bg-blue"}`} />
+                  {sev === "critical" ? "Critical issues" : sev === "warning" ? "Warnings" : "Suggestions"}
+                  <span className="normal-case tracking-normal text-text-dim/70 nums">({items.length})</span>
                 </h3>
                 <div className="space-y-2">
                   {items.map((result, i) => (

@@ -14,10 +14,10 @@ const GRADE_DISPLAY: Record<string, { text: string; bg: string }> = {
   F: { text: "text-rose-500", bg: "bg-rose-950/60" },
 };
 
-const SEV_STYLES: Record<string, { badge: string; border: string; dotClass: string }> = {
-  critical: { badge: "text-[#fda4af] bg-red-950/40", border: "border-red-500/20", dotClass: "bg-rose-500" },
-  warning: { badge: "text-[#fcd34d] bg-amber-950/40", border: "border-amber-500/20", dotClass: "bg-amber-500" },
-  suggestion: { badge: "text-[#93c5fd] bg-blue-950/40", border: "border-blue-500/20", dotClass: "bg-blue-500" },
+const SEV_STYLES: Record<string, { dot: string; label: string; border: string }> = {
+  critical: { dot: "bg-red", label: "text-red", border: "border-red/15" },
+  warning: { dot: "bg-amber", label: "text-amber", border: "border-amber/15" },
+  suggestion: { dot: "bg-blue", label: "text-blue", border: "border-blue/15" },
 };
 
 export default async function ReleaseDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -45,7 +45,7 @@ export default async function ReleaseDetailPage({ params }: { params: Promise<{ 
   return (
     <div className="max-w-4xl mx-auto px-6 py-10">
       {/* Breadcrumb */}
-      <div className="flex items-center gap-2 text-xs font-mono text-text-dim mb-8">
+      <div className="flex items-center gap-2 text-xs text-text-dim mb-8">
         <Link href="/history" className="hover:text-text-muted transition-colors">History</Link>
         <span>/</span>
         <span className="text-text-muted">{release.title}</span>
@@ -59,11 +59,11 @@ export default async function ReleaseDetailPage({ params }: { params: Promise<{ 
           {grade.letter}
         </div>
         <div className="flex-1 min-w-0">
-          <h1 className="font-display text-2xl text-text mb-1 truncate">{release.title}</h1>
-          <p className="text-sm text-text-muted font-mono mb-1">
+          <h1 className="font-display text-2xl text-text mb-1 truncate tracking-tight">{release.title}</h1>
+          <p className="text-sm text-text-muted mb-1 nums">
             {release.artist} · {release.track_count} track{release.track_count !== 1 ? "s" : ""}
           </p>
-          <p className="text-xs font-mono text-text-dim">
+          <p className="text-xs text-text-dim nums">
             <span className="text-red">{criticals.length} critical</span>
             {" · "}
             <span className="text-amber">{warnings.length} warnings</span>
@@ -82,26 +82,28 @@ export default async function ReleaseDetailPage({ params }: { params: Promise<{ 
         const styles = SEV_STYLES[sev];
         return (
           <div key={sev} className="mb-8">
-            <h2 className="font-mono text-xs text-text-dim uppercase tracking-widest mb-3">
-              {sev === "critical" ? "🔴 Critical Issues" : sev === "warning" ? "🟡 Warnings" : "🔵 Suggestions"}{" "}
-              <span className="normal-case">({items.length})</span>
+            <h2 className="flex items-center gap-2 eyebrow mb-3">
+              <span className={`w-2 h-2 rounded-full ${styles.dot}`} />
+              {sev === "critical" ? "Critical issues" : sev === "warning" ? "Warnings" : "Suggestions"}
+              <span className="normal-case tracking-normal text-text-dim/70 nums">({items.length})</span>
             </h2>
             <div className="space-y-2">
               {items.map((result, i) => (
-                <div key={i} className={`rounded-lg border p-4 ${styles.border} bg-bg-elevated`}>
+                <div key={i} className={`rounded-xl border p-4 ${styles.border} bg-bg-elevated`}>
                   <div className="flex items-start gap-3">
-                    <span className={`mt-1 w-2 h-2 rounded-full shrink-0 ${styles.dotClass}`} />
+                    <span className={`mt-1.5 w-2 h-2 rounded-full shrink-0 ${styles.dot}`} />
                     <div>
                       <div className="flex items-center gap-2 flex-wrap mb-1">
-                        <span className={`text-xs font-mono px-2 py-0.5 rounded ${styles.badge}`}>{result.severity}</span>
-                        <span className="text-xs font-mono text-text-dim">{result.field}</span>
+                        <span className={`text-xs font-medium capitalize ${styles.label}`}>{result.severity}</span>
+                        <span className="text-xs text-text-dim">·</span>
+                        <span className="text-xs text-text-muted">{result.field}</span>
                         {result.trackIndex !== undefined && (
-                          <span className="text-xs font-mono text-text-dim">track {result.trackIndex + 1}</span>
+                          <span className="text-xs text-text-dim">track {result.trackIndex + 1}</span>
                         )}
                       </div>
                       <p className="text-sm text-text leading-relaxed">{result.message}</p>
                       {result.suggestion && (
-                        <p className="text-xs text-text-muted mt-1 font-mono">
+                        <p className="text-xs text-text-muted mt-1.5 font-mono">
                           <span className="text-accent-bright">→</span> {result.suggestion}
                         </p>
                       )}
@@ -116,7 +118,7 @@ export default async function ReleaseDetailPage({ params }: { params: Promise<{ 
 
       {results.length === 0 && (
         <div className="rounded-xl border border-green/20 bg-green/5 p-8 text-center">
-          <p className="text-green font-mono text-sm">No issues found — this release is ready! 🎉</p>
+          <p className="text-green text-sm">No issues found — this release is ready to submit.</p>
         </div>
       )}
 
@@ -124,7 +126,7 @@ export default async function ReleaseDetailPage({ params }: { params: Promise<{ 
       <div className="mt-8 pt-8 border-t border-border">
         <Link
           href="/validate"
-          className="text-sm text-accent-bright hover:underline font-mono"
+          className="text-sm text-accent-bright hover:underline"
         >
           ← Validate another release
         </Link>

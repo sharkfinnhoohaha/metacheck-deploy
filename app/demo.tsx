@@ -5,6 +5,19 @@ import { validateTrack, getGrade as computeGrade } from "@/lib/validation/rules"
 import type { TrackMeta, ValidationResult, AiFix } from "@/lib/validation/types";
 import { IconSearch, IconSparkles, IconCheck } from "./_components/icons";
 
+// Shape of a track returned by the iTunes-backed /api/music/search endpoint.
+type SearchItem = {
+  id: string | number;
+  title: string;
+  artist: string;
+  album: string;
+  genre?: string;
+  releaseDate?: string;
+  duration?: string;
+  isrc?: string;
+  artwork?: string;
+};
+
 function validate(t: TrackMeta): ValidationResult[] {
   return validateTrack(t);
 }
@@ -32,7 +45,7 @@ const GRADE_DISPLAY: Record<string, { text: string; bg: string }> = {
 
 export function LiveDemo() {
   const [query, setQuery] = useState("");
-  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [searchResults, setSearchResults] = useState<SearchItem[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [currentTrack, setCurrentTrack] = useState<TrackMeta | null>(null);
   const [results, setResults] = useState<ValidationResult[] | null>(null);
@@ -58,7 +71,7 @@ export function LiveDemo() {
     }
   };
 
-  const selectTrack = (item: any) => {
+  const selectTrack = (item: SearchItem) => {
     const track: TrackMeta = {
       title: item.title,
       artist: item.artist,
@@ -202,7 +215,7 @@ export function LiveDemo() {
                   <p className="font-semibold text-text">
                     {g!.letter === "A" ? "Release ready!" : g!.letter === "B" ? "Almost there" : g!.letter === "C" ? "Needs work" : "Major issues found"}
                   </p>
-                  <p className="text-xs font-mono text-text-dim">
+                  <p className="text-xs text-text-dim nums">
                     {criticals.length} critical · {warnings.length} warnings · {suggestions.length} suggestions
                   </p>
                 </div>
@@ -219,7 +232,7 @@ export function LiveDemo() {
             {/* AI Fixes highlight */}
             {aiFixes.length > 0 && (
               <div className="mb-4 space-y-2">
-                <p className="text-[10px] font-mono font-bold text-accent-bright uppercase tracking-wider">AI Suggestions</p>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-accent-bright">AI suggestions</p>
                 {aiFixes.map((fix, i) => (
                   <div key={i} className="p-3 rounded-xl border border-accent/20 bg-accent/5 flex items-center justify-between gap-3">
                     <div className="min-w-0">

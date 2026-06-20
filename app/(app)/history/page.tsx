@@ -78,10 +78,10 @@ export default async function HistoryPage() {
           {/* Header */}
           <div className="grid grid-cols-[40px_1fr_80px_100px_120px_40px] gap-4 px-5 py-3 border-b border-border">
             <div />
-            <p className="text-xs font-mono text-text-dim uppercase tracking-widest">Release</p>
-            <p className="text-xs font-mono text-text-dim uppercase tracking-widest">Tracks</p>
-            <p className="text-xs font-mono text-text-dim uppercase tracking-widest">Issues</p>
-            <p className="text-xs font-mono text-text-dim uppercase tracking-widest">Date</p>
+            <p className="eyebrow">Release</p>
+            <p className="eyebrow">Tracks</p>
+            <p className="eyebrow">Issues</p>
+            <p className="eyebrow">Date</p>
             <div />
           </div>
 
@@ -99,20 +99,20 @@ export default async function HistoryPage() {
               </div>
               <div className="min-w-0">
                 <p className="text-sm font-medium text-text truncate">{r.title}</p>
-                <p className="text-xs text-text-muted font-mono truncate">{r.artist}</p>
+                <p className="text-xs text-text-muted truncate">{r.artist}</p>
               </div>
-              <p className="text-sm font-mono text-text-muted">{r.track_count}</p>
-              <p className="text-sm font-mono">
+              <p className="text-sm text-text-muted nums">{r.track_count}</p>
+              <p className="text-sm nums">
                 {r.critical_count > 0 && <span className="text-red">{r.critical_count}C </span>}
                 {r.warning_count > 0 && <span className="text-amber">{r.warning_count}W </span>}
                 {r.suggestion_count > 0 && <span className="text-blue">{r.suggestion_count}S</span>}
               </p>
-              <p className="text-xs font-mono text-text-dim">
+              <p className="text-xs text-text-dim nums">
                 {new Date(r.created_at).toLocaleDateString()}
               </p>
               <Link
                 href={`/history/${r.id}`}
-                className="text-xs text-accent-bright hover:underline font-mono"
+                className="text-xs text-accent-bright hover:underline"
               >
                 View →
               </Link>

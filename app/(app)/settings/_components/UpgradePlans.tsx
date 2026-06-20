@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { IconCheck } from "@/app/_components/icons";
 
 type Plan = {
   id: "pro" | "team";
@@ -43,7 +44,7 @@ export function UpgradePlans() {
         <button
           type="button"
           onClick={() => setInterval("month")}
-          className={`px-3 py-1.5 rounded-md text-xs font-mono transition-colors ${
+          className={`px-3 py-1.5 rounded-md text-xs transition-colors ${
             interval === "month" ? "bg-surface text-text" : "text-text-muted hover:text-text"
           }`}
         >
@@ -52,7 +53,7 @@ export function UpgradePlans() {
         <button
           type="button"
           onClick={() => setInterval("year")}
-          className={`px-3 py-1.5 rounded-md text-xs font-mono transition-colors ${
+          className={`px-3 py-1.5 rounded-md text-xs transition-colors ${
             interval === "year" ? "bg-surface text-text" : "text-text-muted hover:text-text"
           }`}
         >
@@ -66,17 +67,17 @@ export function UpgradePlans() {
             <div>
               <div className="flex items-center justify-between mb-1">
                 <h3 className="font-semibold text-text">{plan.name}</h3>
-                <span className="text-accent-bright font-mono text-sm">
+                <span className="text-accent-bright text-sm nums">
                   {interval === "year" ? `${plan.annual}/yr` : `${plan.monthly}/mo`}
                 </span>
               </div>
               {interval === "year" && (
-                <p className="text-xs text-green font-mono">{plan.annualNote} vs monthly</p>
+                <p className="text-xs text-green">{plan.annualNote} vs monthly</p>
               )}
               <ul className="space-y-1.5 mt-3">
                 {plan.features.map((f) => (
                   <li key={f} className="flex items-center gap-2 text-sm text-text-muted">
-                    <span className="text-green text-xs">✓</span> {f}
+                    <IconCheck size={14} className="text-green shrink-0" /> {f}
                   </li>
                 ))}
               </ul>
@@ -91,7 +92,7 @@ export function UpgradePlans() {
             <Link
               href={`/api/paypal/checkout?tier=${plan.id}&interval=${interval}`}
               prefetch={false}
-              className="w-full text-center py-2 rounded-lg border border-border-bright text-xs text-text-muted font-mono hover:text-text hover:border-text-dim transition-colors -mt-2"
+              className="w-full text-center py-2 rounded-lg border border-border-bright text-xs text-text-muted hover:text-text hover:border-text-dim transition-colors -mt-2"
             >
               or pay with PayPal
             </Link>
