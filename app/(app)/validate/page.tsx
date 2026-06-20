@@ -9,6 +9,7 @@ import { checkArtworkFile, scanArtworkText } from "@/lib/validation/artwork";
 import { checkSyncReadiness, CATEGORY_LABEL, type SyncCategory } from "@/lib/validation/sync";
 import { resolveResultFieldKey } from "@/lib/validation/fieldKeys";
 import { exportCsv } from "@/lib/export/csv";
+import { exportPdf } from "@/lib/export/pdf";
 import { IconCheck, IconClapper, IconArrowRight, IconUpload, IconChevronDown, IconBolt, IconSparkles } from "@/app/_components/icons";
 
 // ── CSV column auto-mapping ───────────────────────────────────────────────────
@@ -263,6 +264,41 @@ function UpgradeCard({ context }: { context: string }) {
   );
 }
 
+// Shown when a free user hits the monthly save limit — offers the two real
+// recovery paths (Pro, or a one-time release credit) instead of a raw alert().
+function SaveWallCard() {
+  return (
+    <div className="gradient-border rounded-xl bg-accent/5 p-5">
+      <div className="flex items-start gap-3">
+        <span className="w-9 h-9 rounded-lg bg-accent/15 text-accent-bright flex items-center justify-center shrink-0">
+          <IconSparkles size={18} />
+        </span>
+        <div className="flex-1">
+          <h4 className="font-semibold text-text mb-1">You&apos;ve used your 3 free saves this month</h4>
+          <p className="text-sm text-text-muted mb-4">
+            Upgrade to Pro for unlimited saves &amp; release history — $9/mo — or buy a one-time release
+            credit to save just this one. A single missed ISRC costs more than a year of Pro.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <a
+              href="/api/checkout?tier=pro"
+              className="press inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-accent text-white text-sm font-semibold hover:bg-accent-bright transition-colors"
+            >
+              Upgrade to Pro <IconArrowRight size={15} />
+            </a>
+            <a
+              href="/api/checkout?product=release_credit"
+              className="press inline-flex items-center gap-1.5 px-4 py-2 rounded-lg border border-accent/40 bg-accent/10 text-accent-bright text-sm font-semibold hover:bg-accent/20 transition-colors"
+            >
+              Buy a release credit
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Sync-Ready panel ──────────────────────────────────────────────────────────
 const SYNC_TOGGLES: { key: keyof TrackMeta; label: string }[] = [
   { key: "instrumentalAvailable", label: "Instrumental" },
@@ -503,6 +539,7 @@ export default function ValidatePage() {
   const [briefUpgrade, setBriefUpgrade] = useState(false);
   const [savedId, setSavedId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [saveUpgrade, setSaveUpgrade] = useState(false);
   // Artwork QC
   const [artworkName, setArtworkName] = useState<string | null>(null);
   const [artworkResults, setArtworkResults] = useState<ArtworkCheckResult[] | null>(null);
@@ -799,6 +836,7 @@ export default function ValidatePage() {
   const saveToHistory = async () => {
     if (!results) return;
     setSaving(true);
+    setSaveUpgrade(false);
     try {
       // Save the post-fix state: grade and counts reflect issues still
       // outstanding, not ones the user already resolved before saving.
@@ -821,6 +859,8 @@ export default function ValidatePage() {
         body: JSON.stringify(release),
       });
       const json = await res.json();
+      // Monthly save limit reached → show the in-context upgrade/credit card.
+      if (res.status === 403) { setSaveUpgrade(true); return; }
       if (json.error) throw new Error(json.error);
       setSavedId(json.data?.id);
     } catch (err) {
@@ -1232,6 +1272,12 @@ export default function ValidatePage() {
               >
                 Export CSV
               </button>
+              <button
+                onClick={() => exportPdf(fixedTracks, activeResults, `${fixedTracks[0]?.album || fixedTracks[0]?.title || "metacheck"}-report.pdf`)}
+                className="press px-4 py-2 rounded-lg bg-surface border border-border text-sm text-text-muted hover:text-text transition-colors"
+              >
+                Export PDF
+              </button>
               {!savedId ? (
                 <button
                   onClick={saveToHistory}
@@ -1250,6 +1296,8 @@ export default function ValidatePage() {
               )}
             </div>
           </div>
+
+          {saveUpgrade && <SaveWallCard />}
 
           {/* AI Submission Readiness Brief */}
           <div className="rounded-xl border border-border bg-bg-elevated p-5">

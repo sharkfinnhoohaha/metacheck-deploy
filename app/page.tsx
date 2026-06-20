@@ -239,14 +239,14 @@ export default function Home() {
                 cta: "Get started free", href: "/sign-up", highlight: false,
               },
               {
-                name: "Pro", price: "$9", interval: "/mo · or $49/yr",
+                name: "Pro", price: "$9", interval: "/mo · or $49/yr — save 55%",
                 features: ["Unlimited releases", "One-click AI fixes", "Release history", "PDF reports", "Distributor profiles", "Priority support"],
-                cta: "Start with Pro", href: "/sign-up", highlight: true,
+                cta: "Start with Pro", href: "/sign-up?redirect_url=%2Fapi%2Fcheckout%3Ftier%3Dpro", highlight: true,
               },
               {
-                name: "Label", price: "$29", interval: "/mo · or $290/yr",
+                name: "Label", price: "$29", interval: "/mo · or $290/yr — save 17%",
                 features: ["Everything in Pro", "Batch / catalog mode", "5 team members", "API access", "Custom rules"],
-                cta: "Start with Label", href: "/sign-up", highlight: false,
+                cta: "Start with Label", href: "/sign-up?redirect_url=%2Fapi%2Fcheckout%3Ftier%3Dteam", highlight: false,
               },
             ].map((t, i) => (
               <Reveal key={t.name} delay={i * 80}>
