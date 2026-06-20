@@ -104,7 +104,7 @@ export default async function SettingsPage({
             <div>
               <h3 className="font-semibold text-text">Just one release?</h3>
               <p className="text-sm text-text-muted mt-1">
-                Buy a single <span className="text-text">release credit</span> — unlock save, AI fixes and export
+                Buy a single <span className="text-text">release credit</span> — unlock save and AI fixes
                 for one release. No subscription.
               </p>
             </div>

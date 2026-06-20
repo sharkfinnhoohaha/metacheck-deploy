@@ -13,12 +13,12 @@ import {
 export const metadata: Metadata = {
   title: "Features — every metadata check MetaCheck runs",
   description:
-    "The full breakdown of MetaCheck's 40+ validation rules: ISRC & UPC integrity, credits & splits, title formatting, artwork QC, Sync-Ready scoring, AI-disclosure, distributor profiles, and one-click AI fixes.",
+    "The full breakdown of MetaCheck's 60+ validation rules: ISRC & UPC integrity, credits & splits, title formatting, artwork QC, Sync-Ready scoring, AI-disclosure, distributor profiles, and one-click AI fixes.",
   alternates: { canonical: `${SITE_URL}/features` },
   openGraph: {
     title: "Features — every metadata check MetaCheck runs",
     description:
-      "40+ validation rules across rights, credits, formatting, discovery, artwork, and licensing — with one-click AI fixes.",
+      "60+ validation rules across rights, credits, formatting, discovery, artwork, and licensing — with one-click AI fixes.",
     url: `${SITE_URL}/features`,
   },
 };
@@ -41,7 +41,7 @@ const CAPABILITIES = [
     Icon: IconType,
     title: "Title & formatting linter",
     cat: "Distributor QC",
-    desc: "Fixes wrong “feat.” / “ft.” syntax, ALL-CAPS titles, version tags outside brackets, decorative emoji, unbalanced brackets, keyword stuffing, and banned promo/store words that trigger instant rejection.",
+    desc: "Catches wrong “feat.” / “ft.” syntax, ALL-CAPS titles, version tags outside brackets, decorative emoji, unbalanced brackets, keyword stuffing, and banned promo/store words that trigger instant rejection — and one-click-fixes the common ones.",
   },
   {
     Icon: IconClapper,
@@ -63,7 +63,7 @@ const CAPABILITIES = [
   },
 ];
 
-// The full rule taxonomy — grouped so “40+ rules” reads as concrete coverage.
+// The full rule taxonomy — grouped so “60+ rules” reads as concrete coverage.
 const RULE_GROUPS = [
   {
     Icon: IconFingerprint,
@@ -91,10 +91,10 @@ const RULE_GROUPS = [
     group: "Titles & formatting",
     rules: [
       "feat. / ft. / featuring syntax",
-      "ALL-CAPS & casing-only artist names",
+      "ALL-CAPS titles & casing-only artist names",
       "Version descriptors must be bracketed",
       "Banned promo / store words & URLs",
-      "Emoji & decorative-unicode stripping",
+      "Emoji & decorative-unicode detection",
       "Bracket balance & trailing whitespace",
       "Keyword-stuffing detection",
     ],
@@ -103,9 +103,8 @@ const RULE_GROUPS = [
     Icon: IconSliders,
     group: "Genre & discovery",
     rules: [
-      "DSP-recognized genre matching",
+      "Missing or blank genre",
       "Generic / vague genre flag",
-      "Editorial-pitch genre fit",
     ],
   },
   {
@@ -171,7 +170,7 @@ export default function FeaturesPage() {
             <span className="text-accent-bright">so nothing slips through.</span>
           </h1>
           <p className="fade-up fade-up-3 text-lg text-text-muted leading-relaxed max-w-xl mx-auto mb-9">
-            Forty-plus rules your distributor never tells you about — across rights, credits,
+            Sixty-plus rules your distributor never tells you about — across rights, credits,
             formatting, discovery, artwork, and licensing. Every issue is graded by severity with an
             exact fix. Here&apos;s the full picture.
           </p>
@@ -280,7 +279,7 @@ export default function FeaturesPage() {
       <section className="py-28 border-t border-border bg-bg-elevated/60">
         <Reveal className="mx-auto max-w-xl px-6 text-center">
           <h2 className="font-display text-4xl md:text-5xl tracking-tight mb-4 leading-[1.05]">
-            Run all 40+ checks on your <span className="text-accent-bright">next release.</span>
+            Run all 60+ checks on your <span className="text-accent-bright">next release.</span>
           </h2>
           <p className="text-text-muted mb-9 max-w-md mx-auto">
             Free for three releases a month. No credit card. See exactly what your distributor would

@@ -248,7 +248,7 @@ function UpgradeCard({ context }: { context: string }) {
         <div className="flex-1">
           <h4 className="font-semibold text-text mb-1">You&apos;ve used your free AI {context} this month</h4>
           <p className="text-sm text-text-muted mb-4">
-            Upgrade to Pro for unlimited AI fixes &amp; briefs, release history, PDF reports and distributor
+            Upgrade to Pro for 300 AI fixes &amp; briefs/month, release history, PDF reports and distributor
             profiles — $9/mo. A single missed ISRC costs more than a year of Pro.
           </p>
           <a
