@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { validateTrack, getGrade as computeGrade } from "@/lib/validation/rules";
 import type { TrackMeta, ValidationResult, AiFix } from "@/lib/validation/types";
+import { resolveResultFieldKey } from "@/lib/validation/fieldKeys";
 import { IconSearch, IconSparkles, IconCheck } from "./_components/icons";
 
 // Shape of a track returned by the iTunes-backed /api/music/search endpoint.
@@ -128,7 +129,11 @@ export function LiveDemo() {
 
   const applyFix = (fix: AiFix) => {
     if (!currentTrack) return;
-    const updated = { ...currentTrack, [fix.field]: fix.fixed };
+    // fix.field may be a real TrackMeta key ("releaseDate") or a human label
+    // ("Release Date") from a real model response. Resolve it so multi-word
+    // fields actually apply instead of writing to a junk property.
+    const fieldKey = resolveResultFieldKey(fix.field) ?? (fix.field as keyof TrackMeta);
+    const updated = { ...currentTrack, [fieldKey]: fix.fixed };
     setCurrentTrack(updated);
     setResults(validate(updated));
     setAiFixes((prev) => prev.filter((f) => f.field !== fix.field));
@@ -275,7 +280,7 @@ export function LiveDemo() {
                           </span>
                         </div>
                         <p className="text-sm text-text leading-relaxed">{r.message}</p>
-                        {r.suggestion && !aiFixes.some(f => f.field.toLowerCase() === r.field.toLowerCase()) && (
+                        {r.suggestion && !aiFixes.some(f => resolveResultFieldKey(f.field) === resolveResultFieldKey(r.field)) && (
                           <p className="text-xs font-mono text-accent-bright mt-1.5 opacity-80">
                             → {r.suggestion}
                           </p>
