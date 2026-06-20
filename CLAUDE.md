@@ -64,12 +64,33 @@ you can't undo after you hit distribute."**
 - **`/validate`**: an **Audio pre-flight panel** (opt-in, above Artwork QC) — drop a
   master → loudness/true-peak/clipping stats, verdict rows, the per-DSP matrix, and
   "Use detected BPM/key" chips that fill the Sync-Ready fields via
-  `updateTrackKeepResults`.
+  `updateTrackKeepResults`. Also shows tags read from inside the file (Skill 5).
+
+### Ship 3 — Migration Pre-Flight (the stream-reset guard)
+- **`lib/validation/migration.ts`** (new) — diffs an existing live release against
+  the new upload. ISRC/UPC mismatch or a missing new code = CRITICAL (streams reset
+  to zero); invisible title/artist drift (smart quotes, trailing spaces, accent
+  normalisation, capitalisation) + duration outside ±2 s = warning. Returns a
+  Safe/STOP verdict + the correct **takedown ORDER** (publish new → confirm live →
+  THEN pull old). Collapsible "Switching distributors?" panel on `/validate` with
+  iTunes-proxy autofill for old title/artist/duration. Unit-verified.
+
+### Skill 4 — Split-sheet generator
+- **`lib/export/splitSheet.ts`** (new) — typed writers + writer-splits → a signable
+  split-sheet PDF (jsPDF **lazy-loaded** to keep it out of the bundle; `parseSplitParties`
+  sync for the live preview). Collapsible "Split sheet" panel on `/validate`.
+
+### Skill 5 — Embedded-tag reader + cross-check
+- **`lib/audio/tags.ts`** (new) — dependency-free reader for ID3v2.3/2.4 (MP3), RIFF
+  INFO/bext (WAV), Vorbis comments (FLAC). `check.ts` cross-checks the **embedded**
+  ISRC/title vs typed (embedded-vs-typed ISRC mismatch = warning). Unit-verified.
 
 ### Still TODO on the pivot (not built yet)
-- **Ship 3 — Migration Pre-Flight** (old-vs-new ISRC/UPC diff + correct takedown
-  order) — reuses the iTunes proxy + GS1/ISRC validators.
-- **Rename** — "MetaCheck" is being replaced (name TBD).
+- **Rename** — "MetaCheck" is being replaced (name TBD; Finn deciding — easy swap,
+  new artifacts like the split sheet are intentionally brand-light).
+- **Web Worker** for the audio DSP — currently main-thread (~1–3 s freeze on a full
+  track, behind a loading state); move heavy DSP to a worker (decode stays on main,
+  transfer PCM buffers). Couldn't be runtime-tested locally (auth-gated page).
 - **Landing/tagline rewrite** around "catch what's permanent before you hit
   distribute" + the audio moat; pricing → one flat tier, audio behind it.
 - **Operator:** smoke-test the audio panel on a Vercel preview (needs Clerk keys;
