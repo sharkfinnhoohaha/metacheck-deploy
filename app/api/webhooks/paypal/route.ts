@@ -74,14 +74,38 @@ export async function POST(req: Request) {
             .update({ tier, paypal_subscription_id: subscriptionId })
             .eq("clerk_id", clerkId);
         } else if (subscriptionId) {
-          await supabaseAdmin
+          // No custom_id on this delivery — try to match by subscription id. That
+          // id is only written to a user row by THIS handler, so the first
+          // activation (row keyed by clerk_id, no sub-id yet) matches zero rows.
+          // Don't mark the event processed: unmark + 503 so PayPal retries once
+          // the row carries the sub-id, instead of silently dropping the upgrade.
+          const { data: matched, error } = await supabaseAdmin
             .from("users")
             .update({ tier })
-            .eq("paypal_subscription_id", subscriptionId);
+            .eq("paypal_subscription_id", subscriptionId)
+            .select("clerk_id");
+          if (error) throw error;
+          if (!matched || matched.length === 0) {
+            console.error("PayPal webhook: no user row for subscription id yet — will retry", {
+              subscriptionId, type: event.event_type,
+            });
+            if (event.id) await unmarkWebhook(event.id);
+            return Response.json(
+              { error: "No matching user for subscription yet; retry later" },
+              { status: 503 }
+            );
+          }
         } else {
+          // Un-actionable (no identifiers at all) — let PayPal retry rather than
+          // marking it permanently processed.
           console.error("PayPal webhook: no custom_id or subscription id on event", {
             type: event.event_type,
           });
+          if (event.id) await unmarkWebhook(event.id);
+          return Response.json(
+            { error: "Missing subscription identifiers; retry later" },
+            { status: 503 }
+          );
         }
         break;
       }

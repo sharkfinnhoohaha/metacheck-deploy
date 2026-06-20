@@ -1,6 +1,6 @@
 import { auth } from "@clerk/nextjs/server";
 import { z } from "zod";
-import { trackUsage, reserveAiCall, refundAiCall } from "@/lib/auth/index";
+import { trackUsage, reserveAiCall, refundAiCall, consumeCredit, addCredits } from "@/lib/auth/index";
 import { AI_FIX_SYSTEM_PROMPT } from "@/lib/ai/prompts";
 import { generateText, isAiConfigured } from "@/lib/ai/gemini";
 import { rateLimit, clientIp, isRateLimitConfigured } from "@/lib/ratelimit";
@@ -110,6 +110,10 @@ export async function POST(req: Request) {
   // race on the free taste); for anonymous demo callers, enforce a global daily
   // ceiling so rotated IPs can't drain the Vertex credit past a fixed budget.
   let reservation: { granted: boolean; counted: boolean } | null = null;
+  // True when this call is being paid for by a one-time release credit (the
+  // monthly AI taste/limit was exhausted). The settings page sells the credit as
+  // unlocking "save, AI fixes and export", so honour that here rather than 403-ing.
+  let spentCredit = false;
   if (userId) {
     try {
       reservation = await reserveAiCall(userId);
@@ -121,14 +125,20 @@ export async function POST(req: Request) {
       );
     }
     if (!reservation.granted) {
-      return Response.json(
-        {
-          data: null,
-          error: "You've used your free AI fix this month. Upgrade to Pro for unlimited AI-powered fixes.",
-          upgrade: true,
-        },
-        { status: 403 }
-      );
+      // Monthly allowance is used up — fall back to spending a purchased release
+      // credit before refusing. Only spend if one is available; the credit is
+      // refunded below if we end up serving rules instead of a real AI fix.
+      spentCredit = await consumeCredit(userId);
+      if (!spentCredit) {
+        return Response.json(
+          {
+            data: null,
+            error: "You've used your free AI fix this month. Upgrade to Pro for unlimited AI-powered fixes, or buy a release credit.",
+            upgrade: true,
+          },
+          { status: 403 }
+        );
+      }
     }
   } else {
     // Global daily ceiling for the public demo (IP-rotation-proof) — keeps a
@@ -139,9 +149,20 @@ export async function POST(req: Request) {
     if (!globalOk) return rulesResponse(); // anonymous daily AI budget spent → serve rules
   }
 
-  // If we reserved a (counted) call but end up serving rules, refund it.
+  // If we charged for this call but end up serving rules (no real AI), give it
+  // back: refund the spent release credit, or the reserved monthly usage call.
   const refundIfReserved = async () => {
-    if (userId && reservation?.counted) await refundAiCall(userId);
+    if (!userId) return;
+    if (spentCredit) {
+      // Restore the credit so "one release" is honoured when only rules were served.
+      try {
+        await addCredits(userId, 1);
+      } catch (err) {
+        console.warn("credit refund failed after rules fallback:", err);
+      }
+      return;
+    }
+    if (reservation?.counted) await refundAiCall(userId);
   };
 
   // Serve deterministic rules when no AI is configured, or for an anonymous caller
@@ -174,8 +195,10 @@ export async function POST(req: Request) {
       return rulesResponse();
     }
 
-    // Legacy path only (RPC absent → reservation didn't count): charge now.
-    if (userId && reservation && !reservation.counted) {
+    // Legacy path only (RPC absent → reservation didn't count): charge the
+    // monthly usage now — unless this call was paid for with a release credit,
+    // which must not also burn a usage call.
+    if (userId && !spentCredit && reservation && !reservation.counted) {
       try {
         await trackUsage(userId, "ai_call");
       } catch (err) {

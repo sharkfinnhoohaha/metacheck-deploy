@@ -136,7 +136,9 @@ export function LiveDemo() {
     const updated = { ...currentTrack, [fieldKey]: fix.fixed };
     setCurrentTrack(updated);
     setResults(validate(updated));
-    setAiFixes((prev) => prev.filter((f) => f.field !== fix.field));
+    // Remove only the applied fix by identity — filtering on `field` would drop
+    // every queued fix sharing that field if a future demo returns more than one.
+    setAiFixes((prev) => prev.filter((f) => f !== fix));
   };
 
   const g = results ? grade(results) : null;

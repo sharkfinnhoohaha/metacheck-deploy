@@ -622,7 +622,12 @@ export function getGrade(results: ValidationResult[]): { letter: Grade; color: s
   const w = results.filter((r) => r.severity === "warning").length;
   if (c === 0 && w === 0) return { letter: "A", color: "#22c55e", bg: "#052e16", label: "Release ready!" };
   if (c === 0 && w <= 2) return { letter: "B", color: "#84cc16", bg: "#1a2e05", label: "Almost there" };
-  if (c <= 1) return { letter: "C", color: "#eab308", bg: "#2e2505", label: "Needs work" };
-  if (c <= 3) return { letter: "D", color: "#f97316", bg: "#2e1a05", label: "Major issues" };
+  // Fold warning volume into the lower tiers so two releases with the same critical
+  // count are still differentiated by their warnings (~3 warnings ≈ 1 critical).
+  // Previously the ladder keyed off criticals alone, so 1 crit + 40 warnings graded
+  // the same C as 1 crit + 0 warnings.
+  const score = c + Math.floor(w / 3);
+  if (score <= 1) return { letter: "C", color: "#eab308", bg: "#2e2505", label: "Needs work" };
+  if (score <= 3) return { letter: "D", color: "#f97316", bg: "#2e1a05", label: "Major issues" };
   return { letter: "F", color: "#f43f5e", bg: "#2e050d", label: "Critical failures" };
 }

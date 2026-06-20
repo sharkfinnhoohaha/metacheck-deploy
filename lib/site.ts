@@ -6,9 +6,17 @@
 function firstValidOrigin(...candidates: (string | undefined)[]): string {
   for (const candidate of candidates) {
     if (!candidate) continue;
-    const withScheme = /^https?:\/\//i.test(candidate) ? candidate : `https://${candidate}`;
+    const cleaned = candidate.trim();
+    // Reject obvious unfilled placeholders so a stray "replace_me_https" /
+    // "your-domain.com" left in an env var can't poison canonical/OG/JSON-LD
+    // URLs — fall through to the next candidate (e.g. the real Vercel domain).
+    if (!cleaned || /replace_me|your-domain|changeme|example\.(com|org)/i.test(cleaned)) continue;
+    const withScheme = /^https?:\/\//i.test(cleaned) ? cleaned : `https://${cleaned}`;
     try {
-      return new URL(withScheme).origin;
+      const url = new URL(withScheme);
+      // A usable origin needs a dotted host (a TLD) or localhost. Bare tokens like
+      // "replace_me_https" parse as a valid URL but aren't a real origin, so skip them.
+      if (url.hostname === "localhost" || url.hostname.includes(".")) return url.origin;
     } catch {
       // try the next candidate
     }

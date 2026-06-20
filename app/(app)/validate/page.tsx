@@ -624,19 +624,26 @@ export default function ValidatePage() {
     });
   };
 
-  // Run validation
-  const runValidation = () => {
+  // Run validation. Yield a frame after flipping `isRunning` so the "Scanning…"
+  // state actually paints before the (synchronous, potentially heavy on a large
+  // CSV) engine run blocks the main thread — previously both toggles batched into
+  // one tick and the loading state never rendered.
+  const runValidation = async () => {
     setIsRunning(true);
-    const raw = validateRelease(tracks, getProfile(profileId));
-    setResults(raw.map((r) => ({ ...r, _fixed: false })));
-    setFixedTracks([...tracks]);
-    setAiFixes(null);
-    setAiImpact(null);
-    setAiUpgrade(false);
-    setBrief(null);
-    setBriefUpgrade(false);
-    setSavedId(null);
-    setIsRunning(false);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    try {
+      const raw = validateRelease(tracks, getProfile(profileId));
+      setResults(raw.map((r) => ({ ...r, _fixed: false })));
+      setFixedTracks([...tracks]);
+      setAiFixes(null);
+      setAiImpact(null);
+      setAiUpgrade(false);
+      setBrief(null);
+      setBriefUpgrade(false);
+      setSavedId(null);
+    } finally {
+      setIsRunning(false);
+    }
   };
 
   // ── Artwork QC ────────────────────────────────────────────────────
@@ -675,28 +682,28 @@ export default function ValidatePage() {
       return next;
     });
 
-  // Apply a single fix
+  // Apply a single fix, then re-run the engine. Re-validating (rather than just
+  // flagging the issue `_fixed`) keeps the grade/counts honest: a fix can satisfy
+  // its own rule but also trip or clear OTHER rules on the same field. This mirrors
+  // applyAiFix so both fix paths behave identically.
   const applyFix = (result: ValidationResult) => {
     if (!result.suggestion) return;
     const idx = result.trackIndex ?? 0;
     const fieldKey = resolveFieldKey(result.field);
-    if (!fieldKey) return; // unknown field — don't mark fixed if we can't apply it
-    setFixedTracks((prev) => prev.map((t, i) => i === idx ? { ...t, [fieldKey]: result.suggestion! } : t));
-    setTracks((prev) => prev.map((t, i) => i === idx ? { ...t, [fieldKey]: result.suggestion! } : t));
-    setResults((prev) =>
-      prev?.map((r) => r.rule === result.rule && r.trackIndex === result.trackIndex ? { ...r, _fixed: true } : r) ?? null
-    );
+    if (!fieldKey) return; // unknown field — can't apply it
+    const updated = fixedTracks.map((t, i) => i === idx ? { ...t, [fieldKey]: result.suggestion! } : t);
+    setFixedTracks(updated);
+    setTracks(updated);
+    setResults(validateRelease(updated, getProfile(profileId)).map((r) => ({ ...r, _fixed: false })));
     setSavedId(null); // release changed — any prior save is now stale
   };
 
-  // Auto-fix all fixable
+  // Auto-fix all fixable, then re-validate once. Same re-grade rationale as applyFix.
   const applyAllFixes = () => {
-    const fixable = results?.filter((r) => r.fixable && !r._fixed && r.suggestion) ?? [];
+    const fixable = results?.filter((r) => r.fixable && r.suggestion) ?? [];
     let updated = [...fixedTracks];
-    const appliedRules = new Set<string>();
     // Two fixable rules can target the same cell (e.g. several Title rules). Apply
-    // the FIRST per cell and leave the rest genuinely outstanding — otherwise the
-    // later ones get marked "fixed" without their suggestion actually being written.
+    // the FIRST per cell; re-validation then reports whether the rest still fire.
     const writtenCells = new Set<string>();
     fixable.forEach((r) => {
       const idx = r.trackIndex ?? 0;
@@ -706,13 +713,10 @@ export default function ValidatePage() {
       if (writtenCells.has(cell)) return;
       updated = updated.map((t, i) => i === idx ? { ...t, [fieldKey]: r.suggestion! } : t);
       writtenCells.add(cell);
-      appliedRules.add(`${r.rule}:${r.trackIndex ?? -1}`);
     });
     setFixedTracks(updated);
     setTracks(updated);
-    setResults((prev) => prev?.map((r) => (
-      appliedRules.has(`${r.rule}:${r.trackIndex ?? -1}`) ? { ...r, _fixed: true } : r
-    )) ?? null);
+    setResults(validateRelease(updated, getProfile(profileId)).map((r) => ({ ...r, _fixed: false })));
     setSavedId(null); // release changed — any prior save is now stale
   };
 
@@ -1355,9 +1359,10 @@ export default function ValidatePage() {
             )}
           </div>
 
-          {/* Results by severity */}
+          {/* Results by severity — count outstanding issues (matches the grade card,
+              which also excludes fixes the user already applied). */}
           {(["critical", "warning", "suggestion"] as const).map((sev) => {
-            const items = results.filter((r) => r.severity === sev);
+            const items = activeResults.filter((r) => r.severity === sev);
             if (!items.length) return null;
             return (
               <div key={sev}>

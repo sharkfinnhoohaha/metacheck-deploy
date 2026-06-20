@@ -1,6 +1,6 @@
 import { auth } from "@clerk/nextjs/server";
 import { z } from "zod";
-import { trackUsage, reserveAiCall, refundAiCall } from "@/lib/auth/index";
+import { trackUsage, reserveAiCall, refundAiCall, consumeCredit, addCredits } from "@/lib/auth/index";
 import { AI_BRIEF_SYSTEM_PROMPT } from "@/lib/ai/prompts";
 import { generateText, isAiConfigured } from "@/lib/ai/gemini";
 import { rateLimit, clientIp, isRateLimitConfigured } from "@/lib/ratelimit";
@@ -93,6 +93,9 @@ export async function POST(req: Request) {
 
   // Atomically reserve the AI call for authenticated users (closes the free-taste race).
   let reservation: { granted: boolean; counted: boolean } | null = null;
+  // True when this call is being paid for by a one-time release credit (the
+  // monthly AI allowance was exhausted) — keeps the credit's "AI fixes" promise.
+  let spentCredit = false;
   if (userId) {
     try {
       reservation = await reserveAiCall(userId);
@@ -104,19 +107,33 @@ export async function POST(req: Request) {
       );
     }
     if (!reservation.granted) {
-      return Response.json(
-        {
-          data: null,
-          error: "You've used your free AI run this month. Upgrade to Pro for unlimited AI briefs.",
-          upgrade: true,
-        },
-        { status: 403 }
-      );
+      // Allowance used up — fall back to a purchased release credit before refusing.
+      spentCredit = await consumeCredit(userId);
+      if (!spentCredit) {
+        return Response.json(
+          {
+            data: null,
+            error: "You've used your free AI run this month. Upgrade to Pro for unlimited AI briefs, or buy a release credit.",
+            upgrade: true,
+          },
+          { status: 403 }
+        );
+      }
     }
   }
 
+  // Serving rules instead of real AI → refund whatever we charged (credit or usage).
   const refundIfReserved = async () => {
-    if (userId && reservation?.counted) await refundAiCall(userId);
+    if (!userId) return;
+    if (spentCredit) {
+      try {
+        await addCredits(userId, 1);
+      } catch (err) {
+        console.warn("credit refund failed after rules fallback:", err);
+      }
+      return;
+    }
+    if (reservation?.counted) await refundAiCall(userId);
   };
 
   const canCallModel = isAiConfigured() && (Boolean(userId) || isRateLimitConfigured());
@@ -165,8 +182,9 @@ export async function POST(req: Request) {
       fixOrder: Array.isArray(b.fixOrder) ? (b.fixOrder as unknown[]).map((x) => String(x)) : [],
     };
 
-    // Legacy path only (RPC absent → reservation didn't count): charge now.
-    if (userId && reservation && !reservation.counted) {
+    // Legacy path only (RPC absent → reservation didn't count): charge the
+    // monthly usage now — unless a release credit already paid for this call.
+    if (userId && !spentCredit && reservation && !reservation.counted) {
       try {
         await trackUsage(userId, "ai_call");
       } catch (err) {
