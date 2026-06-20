@@ -2,8 +2,10 @@ import Link from "next/link";
 import { SITE_URL } from "@/lib/site";
 import { LiveDemo } from "./demo";
 import { Reveal } from "./_components/Reveal";
+import { SiteNav } from "./_components/SiteNav";
+import { SiteFooter } from "./_components/SiteFooter";
 import {
-  IconFingerprint, IconPen, IconType, IconClapper, IconRobot, IconSparkles,
+  IconCheckShield, IconNote, IconClapper,
   IconArrowRight, IconArrowDown, IconCheck, IconLock,
 } from "./_components/icons";
 
@@ -24,49 +26,32 @@ const jsonLd = {
   ],
 };
 
-const FEATURES = [
+// Three plain-language promises — the detail lives on /features.
+const PILLARS = [
   {
-    Icon: IconFingerprint,
-    title: "ISRC & UPC integrity",
-    cat: "Rights",
-    desc: "Catches invalid formats, missing codes, and duplicate ISRCs that silently break royalty tracking across every platform.",
+    Icon: IconCheckShield,
+    title: "Pass QC the first time",
+    desc: "Stop bouncing releases off distributor review. MetaCheck catches the wrong codes, bad titles, and banned words that trigger a rejection — before you submit.",
   },
   {
-    Icon: IconPen,
-    title: "Credits & splits",
-    cat: "Royalties",
-    desc: "Flags missing writers and producers, and enforces writer splits that total 100% — so the MLC and your PRO can actually pay you.",
-  },
-  {
-    Icon: IconType,
-    title: "Title & formatting linter",
-    cat: "Distributor QC",
-    desc: "Fixes wrong “feat.” syntax, ALL-CAPS titles, unbracketed versions, and banned words that trigger instant rejections.",
+    Icon: IconNote,
+    title: "Keep the royalties you earn",
+    desc: "A missing credit or an unregistered split sends your money to a black box you may never see. MetaCheck flags every gap so you actually get paid.",
   },
   {
     Icon: IconClapper,
-    title: "Sync-Ready score",
-    cat: "New · Licensing",
-    desc: "Scores how licensable a track is for film & TV — one-stop clearance, instrumental/clean versions, BPM, key and mood tags supervisors search by.",
-  },
-  {
-    Icon: IconRobot,
-    title: "AI-disclosure check",
-    cat: "New · 2026",
-    desc: "Each distributor treats AI music differently. MetaCheck flags where your disclosure will get a release banned vs. shipped — before you submit.",
-  },
-  {
-    Icon: IconSparkles,
-    title: "One-click AI fixes",
-    cat: "Pro",
-    desc: "Auto-corrects casing, writes copyright lines, suggests genres and fixes featured-artist formatting. Review, apply, export clean files.",
+    title: "Get heard — and licensed",
+    desc: "Clean genres, the right release-date timing, and a Sync-Ready score that puts your music in front of playlist editors and film & TV supervisors.",
   },
 ];
 
-const OUTCOMES = [
-  { stat: "Pass QC the first time", desc: "Stop bouncing releases off distributor review. Fix every rejection trigger before you hit submit." },
-  { stat: "Keep the royalties you earn", desc: "Missing credits and unregistered splits send your money to the MLC black box. MetaCheck catches them." },
-  { stat: "Get discovered", desc: "Editorial-pitch timing, clean genres, and a sync-ready score that puts your music in front of playlists and supervisors." },
+// Stat blocks for the “what bad metadata costs you” section. Figures are public
+// industry estimates (MLC unmatched royalties; per-artist averages from
+// independent-royalty audits; distributor manual-review windows) — noted below.
+const COST = [
+  { stat: "$561M+", label: "in royalties sit unmatched in the MLC “black box” — growing about $9M every month." },
+  { stat: "~$15,500", label: "in royalties lost per artist, on average, to metadata mistakes." },
+  { stat: "1–3 weeks", label: "lost to a single rejected release stuck in distributor review." },
 ];
 
 export default function Home() {
@@ -74,29 +59,7 @@ export default function Home() {
     <main>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
 
-      {/* ── NAV ─────────────────────────────────────────── */}
-      <nav className="fixed top-0 inset-x-0 z-50 border-b border-border/70 bg-bg/60 backdrop-blur-xl">
-        <div className="mx-auto max-w-6xl flex items-center justify-between px-6 py-3.5">
-          <div className="flex items-center gap-2.5">
-            <div className="w-7 h-7 rounded-lg bg-accent flex items-center justify-center">
-              <span className="text-white text-sm font-mono font-bold">M</span>
-            </div>
-            <span className="font-display text-xl text-text tracking-tight">MetaCheck</span>
-          </div>
-          <div className="flex items-center gap-1 sm:gap-2">
-            <a href="#features" className="hidden sm:block text-sm text-text-muted hover:text-text transition-colors px-3 py-2 rounded-lg">Features</a>
-            <a href="#demo" className="hidden sm:block text-sm text-text-muted hover:text-text transition-colors px-3 py-2 rounded-lg">Demo</a>
-            <a href="#pricing" className="hidden sm:block text-sm text-text-muted hover:text-text transition-colors px-3 py-2 rounded-lg">Pricing</a>
-            <Link href="/sign-in" className="text-sm text-text-muted hover:text-text transition-colors px-3 py-2 rounded-lg">Sign in</Link>
-            <Link
-              href="/dashboard"
-              className="press inline-flex items-center gap-1.5 text-sm px-4 py-2 bg-accent text-white rounded-lg font-medium hover:bg-accent-bright"
-            >
-              Open app <IconArrowRight size={15} />
-            </Link>
-          </div>
-        </div>
-      </nav>
+      <SiteNav />
 
       {/* ── HERO ────────────────────────────────────────── */}
       <section className="relative pt-36 pb-20 overflow-hidden">
@@ -114,17 +77,18 @@ export default function Home() {
         <div className="relative mx-auto max-w-3xl px-6 text-center">
           <div className="fade-up fade-up-1 inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-border-bright bg-bg-card/60 mb-7">
             <span className="w-1.5 h-1.5 rounded-full bg-accent-bright pulse-soft" />
-            <span className="text-xs text-text-muted tracking-wide">Metadata QC for independent artists &amp; labels</span>
+            <span className="text-xs text-text-muted tracking-wide">Pre-release check for independent artists &amp; labels</span>
           </div>
 
           <h1 className="fade-up fade-up-2 font-display text-5xl md:text-6xl lg:text-7xl leading-[1.02] tracking-tight mb-6">
-            Release-ready metadata,<br />
-            <span className="text-accent-bright">before you hit submit.</span>
+            Catch the mistakes that get<br />
+            your music <span className="text-accent-bright">rejected — or unpaid.</span>
           </h1>
 
           <p className="fade-up fade-up-3 text-lg text-text-muted leading-relaxed max-w-xl mx-auto mb-9">
-            MetaCheck scans every track for the 40+ formatting, credit, and rights errors
-            that get releases rejected or quietly drain your royalties — then fixes them in one click.
+            Before you submit to Spotify, Apple, or your distributor, MetaCheck checks every track
+            for the 40+ small errors that delay releases and quietly drain your royalties —
+            then fixes them in one click. No spreadsheets. No jargon.
           </p>
 
           <div className="fade-up fade-up-4 flex flex-wrap items-center justify-center gap-3 mb-6">
@@ -132,7 +96,7 @@ export default function Home() {
               href="/sign-up"
               className="press glow-teal inline-flex items-center gap-1.5 px-6 py-3 bg-accent text-white rounded-xl text-sm font-semibold hover:bg-accent-bright"
             >
-              Start free <IconArrowRight size={16} />
+              Check my release free <IconArrowRight size={16} />
             </Link>
             <a href="#demo" className="press inline-flex items-center gap-1.5 px-6 py-3 border border-border-bright rounded-xl text-sm font-medium text-text-muted hover:text-text hover:border-text-muted transition-colors">
               Try the live demo <IconArrowDown size={16} />
@@ -140,23 +104,42 @@ export default function Home() {
           </div>
 
           <p className="fade-up fade-up-5 inline-flex items-center gap-2 text-xs text-text-dim">
-            <IconLock size={13} /> Runs in your browser · No credit card · DistroKid, TuneCore &amp; CD Baby
+            <IconLock size={13} /> Runs in your browser · No credit card · Works with DistroKid, TuneCore &amp; CD Baby
           </p>
         </div>
       </section>
 
-      {/* ── VALUE / OUTCOMES ────────────────────────────── */}
+      {/* ── THE COST (why it matters) ───────────────────── */}
       <section className="border-y border-border bg-bg-elevated/60">
-        <div className="mx-auto max-w-6xl px-6 py-16 grid md:grid-cols-3 gap-px bg-border rounded-2xl overflow-hidden my-0">
-          {OUTCOMES.map((o, i) => (
-            <Reveal key={o.stat} delay={i * 80} className="bg-bg-elevated/60 p-8">
-              <div className="w-9 h-9 rounded-lg bg-accent/10 text-accent-bright flex items-center justify-center mb-4">
-                <IconCheck size={18} />
-              </div>
-              <h3 className="font-display text-2xl tracking-tight mb-2">{o.stat}</h3>
-              <p className="text-sm text-text-muted leading-relaxed">{o.desc}</p>
-            </Reveal>
-          ))}
+        <div className="mx-auto max-w-5xl px-6 py-20">
+          <Reveal className="text-center max-w-2xl mx-auto mb-14">
+            <p className="eyebrow mb-3">Why it matters</p>
+            <h2 className="font-display text-4xl md:text-5xl tracking-tight leading-[1.08] mb-4">
+              The industry is sitting on a fortune in unpaid royalties.<br />
+              <span className="text-accent-bright">A lot of it belongs to artists like you.</span>
+            </h2>
+            <p className="text-text-muted leading-relaxed">
+              One misspelled name, one missing songwriter, one wrong code — and a stream can&apos;t be
+              matched, so it can&apos;t be paid. The money piles up unclaimed, and after three years it&apos;s
+              handed to the major labels. MetaCheck makes sure it never goes missing in the first place.
+            </p>
+          </Reveal>
+
+          <div className="grid sm:grid-cols-3 gap-5">
+            {COST.map((c, i) => (
+              <Reveal key={c.stat} delay={i * 90}>
+                <div className="h-full rounded-2xl border border-border bg-bg-card p-7 text-center">
+                  <p className="nums font-display text-5xl text-accent-bright tracking-tight mb-3">{c.stat}</p>
+                  <p className="text-sm text-text-muted leading-relaxed">{c.label}</p>
+                </div>
+              </Reveal>
+            ))}
+          </div>
+          <p className="text-[11px] text-text-dim text-center mt-6 max-w-xl mx-auto leading-relaxed">
+            Industry estimates: the MLC&apos;s reported unmatched royalties; per-artist averages from
+            independent-royalty audits; distributor manual-review windows. Your numbers will vary —
+            but the leak is real, and it&apos;s avoidable.
+          </p>
         </div>
       </section>
 
@@ -164,13 +147,13 @@ export default function Home() {
       <section id="demo" className="py-24">
         <div className="mx-auto max-w-5xl px-6">
           <Reveal className="text-center mb-10">
-            <p className="text-sm text-accent-bright font-medium mb-3">Live demo</p>
-            <h2 className="font-display text-4xl md:text-5xl tracking-tight mb-4">See it catch real errors</h2>
+            <p className="eyebrow mb-3">See it work</p>
+            <h2 className="font-display text-4xl md:text-5xl tracking-tight mb-4">Watch it catch real errors</h2>
             <p className="text-text-muted max-w-md mx-auto">
               This is the actual engine. Search any released song and watch it audit the metadata in real time.
             </p>
             <p className="inline-flex items-center gap-1.5 text-xs text-text-dim mt-4">
-              <IconLock size={13} /> Validation runs entirely in your browser — nothing leaves your device.
+              <IconLock size={13} /> Everything runs in your browser — your unreleased music never leaves your device.
             </p>
           </Reveal>
           <Reveal delay={80}>
@@ -179,40 +162,46 @@ export default function Home() {
         </div>
       </section>
 
-      {/* ── FEATURES ────────────────────────────────────── */}
-      <section id="features" className="py-24 border-t border-border">
+      {/* ── WHAT IT DOES FOR YOU (3 pillars → /features) ── */}
+      <section className="py-24 border-t border-border bg-bg-elevated/60">
         <div className="mx-auto max-w-6xl px-6">
-          <Reveal className="max-w-2xl mb-14">
-            <p className="text-sm text-accent-bright font-medium mb-3">What it catches</p>
+          <Reveal className="text-center max-w-2xl mx-auto mb-14">
+            <p className="eyebrow mb-3">What you get</p>
             <h2 className="font-display text-4xl md:text-5xl tracking-tight leading-[1.05]">
-              Forty-plus rules your distributor never tells you about.
+              Three things every release needs.<br />MetaCheck handles all three.
             </h2>
           </Reveal>
 
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {FEATURES.map((f, i) => (
-              <Reveal key={f.title} delay={(i % 3) * 70}>
-                <div className="lift group h-full rounded-2xl border border-border bg-bg-card p-6 hover:border-border-bright hover:bg-surface">
+          <div className="grid md:grid-cols-3 gap-5">
+            {PILLARS.map((p, i) => (
+              <Reveal key={p.title} delay={i * 80}>
+                <div className="lift group h-full rounded-2xl border border-border bg-bg-card p-7 hover:border-border-bright hover:bg-surface">
                   <div className="w-11 h-11 rounded-xl bg-accent/10 text-accent-bright flex items-center justify-center mb-5 transition-colors group-hover:bg-accent/15">
-                    <f.Icon size={22} />
+                    <p.Icon size={22} />
                   </div>
-                  <div className="flex items-center gap-2 mb-2">
-                    <h3 className="font-semibold text-text">{f.title}</h3>
-                  </div>
-                  <p className="eyebrow mb-3">{f.cat}</p>
-                  <p className="text-sm text-text-muted leading-relaxed">{f.desc}</p>
+                  <h3 className="font-semibold text-text text-lg mb-2">{p.title}</h3>
+                  <p className="text-sm text-text-muted leading-relaxed">{p.desc}</p>
                 </div>
               </Reveal>
             ))}
           </div>
+
+          <Reveal className="text-center mt-12">
+            <Link
+              href="/features"
+              className="press inline-flex items-center gap-1.5 px-5 py-3 border border-border-bright rounded-xl text-sm font-medium text-text hover:border-text-muted transition-colors"
+            >
+              See everything it checks — all 40+ rules <IconArrowRight size={16} />
+            </Link>
+          </Reveal>
         </div>
       </section>
 
       {/* ── HOW IT WORKS ────────────────────────────────── */}
-      <section className="py-24 border-t border-border bg-bg-elevated/60">
+      <section className="py-24 border-t border-border">
         <div className="mx-auto max-w-5xl px-6">
           <Reveal className="text-center mb-16">
-            <p className="text-sm text-accent-bright font-medium mb-3">How it works</p>
+            <p className="eyebrow mb-3">How it works</p>
             <h2 className="font-display text-4xl md:text-5xl tracking-tight">Three steps. Two seconds. Zero rejections.</h2>
           </Reveal>
 
@@ -235,10 +224,10 @@ export default function Home() {
       </section>
 
       {/* ── PRICING ─────────────────────────────────────── */}
-      <section id="pricing" className="py-24 border-t border-border">
+      <section id="pricing" className="py-24 border-t border-border bg-bg-elevated/60">
         <div className="mx-auto max-w-5xl px-6">
           <Reveal className="text-center mb-14">
-            <p className="text-sm text-accent-bright font-medium mb-3">Pricing</p>
+            <p className="eyebrow mb-3">Pricing</p>
             <h2 className="font-display text-4xl md:text-5xl tracking-tight mb-3">Start free. Upgrade when you scale.</h2>
             <p className="text-text-muted">A single missed ISRC costs more than a year of Pro.</p>
           </Reveal>
@@ -300,21 +289,21 @@ export default function Home() {
       </section>
 
       {/* ── FINAL CTA ───────────────────────────────────── */}
-      <section id="get-started" className="py-28 border-t border-border bg-bg-elevated/60">
+      <section id="get-started" className="py-28 border-t border-border">
         <Reveal className="mx-auto max-w-xl px-6 text-center">
           <h2 className="font-display text-4xl md:text-5xl tracking-tight mb-4 leading-[1.05]">
-            Stop losing royalties to <span className="text-accent-bright">sloppy metadata.</span>
+            Your next release deserves to <span className="text-accent-bright">get paid.</span>
           </h2>
           <p className="text-text-muted mb-9 max-w-md mx-auto">
-            Check your next release in seconds. Catch the errors that cost you a release date or a
-            royalty before you ever hit submit.
+            Check it in seconds. Catch the errors that cost you a release date or a
+            royalty — before you ever hit submit.
           </p>
           <div className="flex flex-wrap items-center justify-center gap-3">
             <Link
               href="/sign-up"
               className="press glow-teal inline-flex items-center gap-1.5 px-6 py-3 bg-accent text-white rounded-xl text-sm font-semibold hover:bg-accent-bright"
             >
-              Start free <IconArrowRight size={16} />
+              Check my release free <IconArrowRight size={16} />
             </Link>
             <a href="#demo" className="press inline-flex items-center gap-1.5 px-6 py-3 border border-border-bright rounded-xl text-sm font-medium text-text-muted hover:text-text hover:border-text-muted transition-colors">
               Try the live demo <IconArrowDown size={16} />
@@ -324,16 +313,7 @@ export default function Home() {
         </Reveal>
       </section>
 
-      {/* ── FOOTER ──────────────────────────────────────── */}
-      <footer className="border-t border-border py-10">
-        <div className="mx-auto max-w-6xl px-6 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-text-dim">
-          <span>&copy; {new Date().getFullYear()} Overlook Strategy</span>
-          <div className="flex gap-6">
-            <Link href="/terms" className="hover:text-text-muted transition-colors">Terms</Link>
-            <Link href="/privacy" className="hover:text-text-muted transition-colors">Privacy</Link>
-          </div>
-        </div>
-      </footer>
+      <SiteFooter />
     </main>
   );
 }
