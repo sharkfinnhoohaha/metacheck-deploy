@@ -62,7 +62,7 @@ export default function Home() {
       <SiteNav />
 
       {/* ── HERO ────────────────────────────────────────── */}
-      <section className="relative pt-36 pb-20 overflow-hidden">
+      <section className="relative pt-44 pb-28 overflow-hidden">
         {/* eslint-disable-next-line react/forbid-dom-props */}
         <div className="absolute inset-0 opacity-[0.035]" style={{
           backgroundImage: `linear-gradient(var(--color-border) 1px, transparent 1px), linear-gradient(90deg, var(--color-border) 1px, transparent 1px)`,
@@ -75,20 +75,18 @@ export default function Home() {
           style={{ background: "radial-gradient(ellipse, rgba(13,148,136,0.10) 0%, transparent 70%)" }} />
 
         <div className="relative mx-auto max-w-3xl px-6 text-center">
-          <div className="fade-up fade-up-1 inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-border-bright bg-bg-card/60 mb-7">
+          <div className="fade-up fade-up-1 inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-border-bright bg-bg-card/60 mb-8">
             <span className="w-1.5 h-1.5 rounded-full bg-accent-bright pulse-soft" />
-            <span className="text-xs text-text-muted tracking-wide">Pre-release check for independent artists &amp; labels</span>
+            <span className="text-xs text-text-muted tracking-wide">For independent artists &amp; labels</span>
           </div>
 
-          <h1 className="fade-up fade-up-2 font-display text-5xl md:text-6xl lg:text-7xl leading-[1.02] tracking-tight mb-6">
-            Catch the mistakes that get<br />
-            your music <span className="text-accent-bright">rejected — or unpaid.</span>
+          <h1 className="fade-up fade-up-2 font-display text-6xl md:text-7xl lg:text-8xl leading-[0.95] mb-7">
+            Release music<br />that <span className="text-accent-bright">gets paid.</span>
           </h1>
 
-          <p className="fade-up fade-up-3 text-lg text-text-muted leading-relaxed max-w-xl mx-auto mb-9">
-            Before you submit to Spotify, Apple, or your distributor, MetaCheck checks every track
-            for the 40+ small errors that delay releases and quietly drain your royalties —
-            then fixes them in one click. No spreadsheets. No jargon.
+          <p className="fade-up fade-up-3 text-xl text-text-muted leading-relaxed max-w-lg mx-auto mb-10">
+            MetaCheck catches the errors that get your tracks rejected — or quietly
+            drain your royalties — before you hit submit.
           </p>
 
           <div className="fade-up fade-up-4 flex flex-wrap items-center justify-center gap-3 mb-6">
