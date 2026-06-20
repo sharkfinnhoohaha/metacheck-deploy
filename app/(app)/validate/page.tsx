@@ -7,6 +7,7 @@ import { validateRelease, getGrade } from "@/lib/validation/rules";
 import { PROFILES, getProfile } from "@/lib/validation/profiles";
 import { checkArtworkFile, scanArtworkText } from "@/lib/validation/artwork";
 import { checkSyncReadiness, CATEGORY_LABEL, type SyncCategory } from "@/lib/validation/sync";
+import { resolveResultFieldKey } from "@/lib/validation/fieldKeys";
 import { exportCsv } from "@/lib/export/csv";
 import { IconCheck, IconClapper, IconArrowRight, IconUpload, IconChevronDown, IconBolt, IconSparkles } from "@/app/_components/icons";
 
@@ -99,35 +100,12 @@ const FIELDS: { key: keyof TrackMeta; label: string; placeholder?: string; requi
   { key: "aiDisclosure", label: "AI Disclosure", placeholder: "none / ai-assisted / ai-vocals / fully-ai" },
 ];
 
-// Maps a ValidationResult.field (human label from the engine, e.g. "Copyright")
-// to its TrackMeta key. The form labels differ ("Copyright (℗)", "UPC / Barcode",
-// etc.), so matching on form labels silently fails — this map is the source of truth.
-const RESULT_FIELD_TO_KEY: Record<string, keyof TrackMeta> = {
-  "isrc": "isrc",
-  "title": "title",
-  "artist": "artist",
-  "featured artists": "featuredArtists",
-  "album": "album",
-  "upc": "upc",
-  "genre": "genre",
-  "release date": "releaseDate",
-  "songwriters": "songwriters",
-  "producers": "producers",
-  "composers": "composers",
-  "copyright": "copyright",
-  "explicit": "explicit",
-  "language": "language",
-  "label": "label",
-  "duration": "duration",
-  "track number": "trackNumber",
-  "splits": "splits",
-  "iswc": "iswc",
-  "ai disclosure": "aiDisclosure",
-};
-
+// The engine→TrackMeta field map lives in lib/validation/fieldKeys.ts so the
+// public demo shares the exact same source of truth. Here we extend it with a
+// fallback that also matches against the form labels.
 function resolveFieldKey(field: string): keyof TrackMeta | undefined {
   return (
-    RESULT_FIELD_TO_KEY[field.toLowerCase().trim()] ??
+    resolveResultFieldKey(field) ??
     FIELDS.find((f) => f.label.toLowerCase() === field.toLowerCase())?.key
   );
 }
@@ -223,9 +201,9 @@ function ResultCard({
             )}
           </div>
         </div>
-        {result.fixable && !result._fixed && (
+        {onApplyFix && result.fixable && !result._fixed && (
           <button
-            onClick={() => onApplyFix?.(result)}
+            onClick={() => onApplyFix(result)}
             className="press shrink-0 text-xs px-3 py-1.5 rounded-lg bg-accent/10 text-accent-bright border border-accent/20 hover:bg-accent/20 transition-colors"
           >
             Apply fix
@@ -664,6 +642,7 @@ export default function ValidatePage() {
     setResults((prev) =>
       prev?.map((r) => r.rule === result.rule && r.trackIndex === result.trackIndex ? { ...r, _fixed: true } : r) ?? null
     );
+    setSavedId(null); // release changed — any prior save is now stale
   };
 
   // Auto-fix all fixable
@@ -690,6 +669,7 @@ export default function ValidatePage() {
     setResults((prev) => prev?.map((r) => (
       appliedRules.has(`${r.rule}:${r.trackIndex ?? -1}`) ? { ...r, _fixed: true } : r
     )) ?? null);
+    setSavedId(null); // release changed — any prior save is now stale
   };
 
   // AI suggestions
@@ -759,6 +739,7 @@ export default function ValidatePage() {
     // (one AI fix can clear several related rules — re-running the engine is the
     // robust way to keep the results in sync).
     setResults(validateRelease(updated, getProfile(profileId)).map((r) => ({ ...r, _fixed: false })));
+    setSavedId(null); // release changed — any prior save is now stale
   };
 
   // Save to history
@@ -778,8 +759,8 @@ export default function ValidatePage() {
         critical_count: active.filter((r) => r.severity === "critical").length,
         warning_count: active.filter((r) => r.severity === "warning").length,
         suggestion_count: active.filter((r) => r.severity === "suggestion").length,
-        tracks,
-        results,
+        tracks: fixedTracks,
+        results: active,
       };
       const res = await fetch("/api/releases", {
         method: "POST",

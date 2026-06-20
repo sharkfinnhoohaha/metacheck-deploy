@@ -34,7 +34,11 @@ export default async function ReleaseDetailPage({ params }: { params: Promise<{ 
 
   if (!release) notFound();
 
-  const results = (release.results ?? []) as (ValidationResult & { _fixed?: boolean })[];
+  // Show only issues still outstanding. Older saved records may include items the
+  // user already fixed (flagged `_fixed`); excluding them keeps the grade and
+  // counts here consistent with the history list and the saved summary.
+  const results = ((release.results ?? []) as (ValidationResult & { _fixed?: boolean })[])
+    .filter((r) => !r._fixed);
   const tracks = release.tracks ?? [];
   const grade = getGrade(results);
 
