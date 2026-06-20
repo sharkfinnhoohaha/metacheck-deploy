@@ -9,6 +9,7 @@
 import { decodeAudioFile } from "./decode";
 import { measureLoudness } from "./loudness";
 import { estimateTempoKey } from "./tempoKey";
+import { readEmbeddedTags, type EmbeddedTags } from "./tags";
 import type { AudioAnalysis, AudioCheckResult, DspLoudnessTarget } from "./types";
 import type { TrackMeta } from "../validation/types";
 
@@ -32,6 +33,8 @@ export type AudioReport = {
   analysis: AudioAnalysis;
   results: AudioCheckResult[];
   matrix: LoudnessMatrixRow[];
+  /** Metadata embedded in the file's container (ID3/RIFF/FLAC), if any. */
+  tags: EmbeddedTags;
   /** True if any critical/warning surfaced — drives the STOP vs OK headline. */
   hasIssues: boolean;
 };
@@ -57,6 +60,10 @@ function fmtDb(n: number): string {
 }
 
 export async function checkAudioFile(file: File, track?: TrackMeta): Promise<AudioReport> {
+  // Read the container tags from the raw bytes (cheap) before decoding the PCM.
+  let tags: EmbeddedTags = { source: null };
+  try { tags = readEmbeddedTags(await file.arrayBuffer()); } catch { /* best-effort */ }
+
   const decoded = await decodeAudioFile(file);
   const loudness = measureLoudness(decoded.channels, decoded.sampleRate);
   const tempoKey = estimateTempoKey(decoded.channels, decoded.sampleRate);
@@ -175,6 +182,32 @@ export async function checkAudioFile(file: File, track?: TrackMeta): Promise<Aud
         });
       }
     }
+
+    // ── Embedded-tag cross-checks (what's baked INTO the file vs what you typed) ──
+    const normCode = (s: string) => s.replace(/[^a-z0-9]/gi, "").toUpperCase();
+    if (tags.isrc) {
+      const typedIsrc = (track.isrc || "").trim();
+      if (typedIsrc && normCode(tags.isrc) !== normCode(typedIsrc)) {
+        results.push({
+          severity: "warning",
+          rule: "audio_embedded_isrc_mismatch",
+          message: `The file has an embedded ISRC (${tags.isrc}) that differs from your metadata ISRC (${typedIsrc}). One of them is wrong — and the embedded code can misroute royalties or split the recording. Make them identical.`,
+        });
+      } else if (!typedIsrc) {
+        results.push({
+          severity: "suggestion",
+          rule: "audio_embedded_isrc",
+          message: `The file already carries an embedded ISRC (${tags.isrc}). If this is a re-release, reuse this exact code; if it's a leftover from another project, clear it before you distribute.`,
+        });
+      }
+    }
+    if (tags.title && track.title?.trim() && tags.title.trim().toLowerCase() !== track.title.trim().toLowerCase()) {
+      results.push({
+        severity: "suggestion",
+        rule: "audio_embedded_title_mismatch",
+        message: `The file's embedded title ("${tags.title}") differs from your release title ("${track.title.trim()}"). Some platforms and library tools read the embedded tag — keep them consistent.`,
+      });
+    }
   }
 
   if (results.length === 0) {
@@ -186,7 +219,7 @@ export async function checkAudioFile(file: File, track?: TrackMeta): Promise<Aud
   }
 
   const hasIssues = results.some((r) => r.severity === "critical" || r.severity === "warning");
-  return { analysis, results, matrix, hasIssues };
+  return { analysis, results, matrix, tags, hasIssues };
 }
 
 function formatClock(seconds: number): string {

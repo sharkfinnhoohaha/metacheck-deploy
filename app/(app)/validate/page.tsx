@@ -11,6 +11,7 @@ import { resolveResultFieldKey } from "@/lib/validation/fieldKeys";
 import { classifyPermanence, preflightVerdict, type PermanenceLevel } from "@/lib/validation/permanence";
 import { diffMigration } from "@/lib/validation/migration";
 import { checkAudioFile, type AudioReport } from "@/lib/audio/check";
+import { hasEmbeddedData } from "@/lib/audio/tags";
 import { exportCsv } from "@/lib/export/csv";
 import { exportSplitSheet, parseSplitParties } from "@/lib/export/splitSheet";
 import { IconCheck, IconClapper, IconArrowRight, IconUpload, IconChevronDown, IconBolt, IconSparkles, IconFingerprint, IconPen } from "@/app/_components/icons";
@@ -497,6 +498,20 @@ function AudioPanel({
               <ArtworkRow key={i} a={a} />
             ))}
           </div>
+
+          {/* What we read INSIDE the file (embedded container tags) */}
+          {hasEmbeddedData(report.tags) && (
+            <div className="rounded-lg border border-border bg-surface/30 px-4 py-3">
+              <p className="eyebrow mb-1.5">Embedded in the file</p>
+              <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-text-muted font-mono">
+                {report.tags.title && <span>title: <span className="text-text">{report.tags.title}</span></span>}
+                {report.tags.artist && <span>artist: <span className="text-text">{report.tags.artist}</span></span>}
+                {report.tags.isrc && <span>ISRC: <span className="text-text">{report.tags.isrc}</span></span>}
+                {report.tags.bpm && <span>BPM: <span className="text-text">{report.tags.bpm}</span></span>}
+                {report.tags.key && <span>key: <span className="text-text">{report.tags.key}</span></span>}
+              </div>
+            </div>
+          )}
 
           {/* Per-DSP normalization matrix */}
           <div className="rounded-lg border border-border bg-surface/30 overflow-hidden">
