@@ -1,14 +1,76 @@
 # CLAUDE.md — MetaCheck: Build the Functional Tool
 
-## Status (updated 19 June 2026)
+## Status (updated 20 June 2026)
 
-**All 9 build phases complete + a major modernization/feature/hardening pass.
-`npm run build` ✓. LIVE in production on Vercel (`metacheck-ten.vercel.app`).**
+**All 9 build phases complete + a major modernization/feature/hardening pass,
+a final landing redesign, an e2e suite, and an audit-follow-ups bug pass.
+`npm run build` ✓, Playwright e2e ✓ (10/10). LIVE in production on Vercel
+(`metacheck-ten.vercel.app`).**
 
 The core metadata-checking feature was audited and substantially expanded on
 18 June 2026 — see **Metadata-checking audit & feature pass** below. On 19 June
 2026 the UI was modernized and a large set of features + backend hardening shipped
-— see **19 June 2026 pass** immediately below.
+— see **19 June 2026 pass**. On 20 June 2026 the landing page got its final
+"Robinhood-style" redesign + a Playwright e2e suite, and an audit-follow-ups bug
+pass shipped — see **20 June 2026 pass** immediately below.
+
+---
+
+## 20 June 2026 — Final landing redesign, e2e, audit follow-ups
+
+All shipped to `main` (Vercel production).
+
+### Landing redesign + e2e
+- **Final landing polish** (`app/page.tsx`) — clean geometric/heavy hero:
+  "Release music that gets paid." pain/money hook, tighter copy.
+- **Display font changed**: `Instrument Serif` → **`Outfit`** (heavy, tight
+  tracking) for a modern "Robinhood" feel. `--font-display` in `app/globals.css`
+  is now Outfit; a `.font-display` base rule sets weight 700 / `-0.035em`.
+  **The design-system font note below is updated to match — do not reintroduce
+  Instrument Serif.**
+- **Playwright e2e** (`playwright.config.ts` + `tests/e2e/public.spec.ts`) — covers
+  the public surface (landing hero/pricing/CTAs, `/features`, `/release-planner`,
+  live demo) on desktop + mobile. Config runs against a dev server on **:3210**
+  (no `webServer` block — start `PORT=3210 npm run dev` first, then
+  `npx playwright test`). `@playwright/test` is a devDependency.
+
+### Public routes (added before this pass, now covered by e2e + sitemap)
+- `/features`, `/release-planner` (free client-side timeline tool), `/privacy`,
+  `/terms` — all in the sitemap. New public routes still need the `middleware.ts`
+  allowlist.
+
+### SEO canonical origin (`lib/site.ts`)
+- `SITE_URL` is resolved by `firstValidOrigin(...)`: explicit `NEXT_PUBLIC_APP_URL`
+  → Vercel production domain → localhost. It rejects unfilled placeholder hosts
+  (compared against the **parsed hostname**, exact/subdomain — not a raw-string
+  substring) so a stray env value can't poison canonical/OG/JSON-LD URLs.
+  **In prod, set `NEXT_PUBLIC_APP_URL` to the real origin** or tags fall back to
+  the Vercel auto-domain.
+
+### Audit follow-ups (High/Medium/Low) + ultrareview fixes
+- **Release credit unlocks AI** — when the monthly free AI taste/limit is spent,
+  `/api/ai/fix` + `/api/ai/brief` fall back to `consumeCredit` before 403-ing
+  (honoring the "unlock save, AI fixes and export" credit promise). The credit is
+  only spent on a real AI call and **refunded (`addCredits`) on rules-fallback**,
+  and excluded from the legacy usage-charge so it isn't double-billed.
+- **Validate page**: per-severity section counts now use the outstanding
+  (`activeResults`) set, matching the grade card. `applyFix` / `applyAllFixes`
+  re-validate (like `applyAiFix`) and derive `updated` from the **live `tracks`**,
+  not the frozen `fixedTracks` snapshot — so Sync-Ready edits (bpm/key/mood/
+  contact/toggles via `updateTrackKeepResults`) made after validation aren't wiped.
+- **`getGrade`**: warning volume folds into the lower tiers (`c + ⌊w/3⌋`, ~3
+  warnings ≈ 1 critical). An F reached by warnings alone (`c === 0`) is labelled
+  **"Too many issues"**, not "Critical failures" (which contradicted the breakdown).
+- **PayPal webhook**: an activate/update with no `custom_id` whose subscription id
+  matches no row now unmarks the idempotency record + returns **503** so PayPal
+  retries once the row exists (was a silent no-op marked processed).
+- **Low**: `runValidation` yields a frame so the loading state renders; demo
+  `applyFix` removes the queued fix by identity, not by field.
+
+### New env vars / operator steps (20 June)
+- **Set `NEXT_PUBLIC_APP_URL` in Vercel prod** to the real origin (SEO canonical).
+- `ADMIN_USER_IDS` / `ADMIN_EMAILS` now documented in `.env.example`.
+- **No DB migrations, no secret changes** in this pass.
 
 ---
 
@@ -278,9 +340,10 @@ app/
     webhooks/stripe/route.ts    # Stripe subscription events → tier updates
 lib/
   ai/prompts.ts                 # AI_FIX_SYSTEM_PROMPT for Claude
-  auth/index.ts                 # getUserTier, canValidate, canUseAI, trackUsage
+  auth/index.ts                 # getUserTier, canValidate, canUseAI, trackUsage, reserve/refundAiCall, consumeCredit/addCredits
   export/csv.ts                 # exportCsv() — browser download
   export/pdf.ts                 # exportPdf() — jsPDF report
+  site.ts                       # SITE_URL canonical-origin resolver (firstValidOrigin, placeholder-host guard)
   stripe/index.ts               # createCheckoutSession, createPortalSession
   supabase/client.ts            # Browser client (createBrowserClient)
   supabase/server.ts            # Server client (createServerClient + cookies)
@@ -289,8 +352,12 @@ lib/
   validation/types.ts           # TrackMeta, ValidationResult, Grade, AiFix, DistributorProfile, ArtworkCheckResult
   validation/profiles.ts        # Per-distributor rule profiles (DistroKid/CD Baby/TuneCore/Apple/generic)
   validation/artwork.ts         # checkArtworkFile (specs + JPEG-CMYK), scanArtworkText (lazy OCR)
+  validation/sync.ts            # checkSyncReadiness — 0–100 sync-licensing readiness score
 supabase/
   migrations/001_schema.sql     # users, usage, releases tables + RLS
+  migrations/00{2,3,4}_*.sql    # 002 paypal, 003 usage_and_credits, 004 hardening (RPC + webhook_events)
+tests/e2e/public.spec.ts        # Playwright e2e (public surface, desktop + mobile)
+playwright.config.ts            # e2e config — runs against a dev server on :3210
 middleware.ts                   # Clerk route protection
 .env.example                    # All required env vars documented
 ```
@@ -321,7 +388,9 @@ All phases from the original spec are implemented. Key notes for ongoing work:
 - **Text**: `#e8e6e3` (primary), `#8a8a95` (muted), `#5a5a65` (dim)
 - **Accent**: `#0d9488` (teal), `#14b8a6` (bright teal)
 - **Severity colors**: red `#f43f5e` (critical), amber `#f59e0b` (warning), blue `#3b82f6` (suggestion), green `#22c55e` (success/grade-A)
-- **Fonts**: `Instrument Serif` (display/headings), `Outfit` (body), `IBM Plex Mono` (code/data)
+- **Fonts**: `Outfit` (display/headings — heavy + tight, set via `--font-display`
+  and the `.font-display` base rule), `Outfit` (body), `IBM Plex Mono` (code/data).
+  _(As of the 20 June redesign — was `Instrument Serif` for display; do not revert.)_
 - **Border**: `#2a2a30` (default), `#3a3a42` (bright)
 - **Border radius**: `rounded-xl` for cards, `rounded-lg` for buttons/inputs
 - Use `gradient-border` class (already in globals.css) for featured cards
