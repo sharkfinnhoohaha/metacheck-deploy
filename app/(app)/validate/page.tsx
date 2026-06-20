@@ -424,6 +424,44 @@ type BatchRelease = {
   grade: ReturnType<typeof getGrade>;
 };
 
+// Rights/credit fields whose issues can block or misroute royalties (vs. purely
+// cosmetic formatting). Used to surface a catalog-wide "royalty risk" count.
+const ROYALTY_RISK_FIELDS = new Set(
+  ["isrc", "upc", "songwriters", "producers", "composers", "splits", "iswc", "copyright"]
+);
+
+const GRADE_POINTS: Record<string, number> = { A: 100, B: 86, C: 72, D: 58, F: 38 };
+
+export type CatalogHealth = {
+  score: number;          // 0–100, average of per-release grade points
+  releases: number;
+  tracks: number;
+  cleanReleases: number;  // grade A/B, no criticals
+  atRisk: number;         // grade D/F or any critical
+  royaltyRisk: number;    // releases with an unresolved rights/credit issue
+  criticals: number;
+};
+
+// Portfolio-level rollup for batch/catalog mode — the "Catalog Health Score".
+function computeCatalogHealth(batch: BatchRelease[]): CatalogHealth {
+  const releases = batch.length || 1;
+  const score = Math.round(
+    batch.reduce((sum, b) => sum + (GRADE_POINTS[b.grade.letter] ?? 60), 0) / releases
+  );
+  const hasCritical = (b: BatchRelease) => b.results.some((r) => r.severity === "critical");
+  return {
+    score,
+    releases: batch.length,
+    tracks: batch.reduce((n, b) => n + b.tracks.length, 0),
+    cleanReleases: batch.filter((b) => (b.grade.letter === "A" || b.grade.letter === "B") && !hasCritical(b)).length,
+    atRisk: batch.filter((b) => b.grade.letter === "D" || b.grade.letter === "F" || hasCritical(b)).length,
+    royaltyRisk: batch.filter((b) =>
+      b.results.some((r) => r.severity !== "suggestion" && ROYALTY_RISK_FIELDS.has(r.field.toLowerCase()))
+    ).length,
+    criticals: batch.reduce((n, b) => n + b.results.filter((r) => r.severity === "critical").length, 0),
+  };
+}
+
 // Group flat CSV rows into releases by album (falling back to UPC, then a single
 // bucket) so a label can QC a whole catalog from one spreadsheet.
 function groupReleases(tracks: TrackMeta[]): Record<string, TrackMeta[]> {
@@ -433,6 +471,17 @@ function groupReleases(tracks: TrackMeta[]): Record<string, TrackMeta[]> {
     (groups[key] ||= []).push(t);
   });
   return groups;
+}
+
+// Group a flat catalog into releases and validate each against the given
+// profile. Shared by the CSV parse and the profile-switcher so changing the
+// distributor re-grades the catalog in place instead of forcing a re-upload.
+function buildBatch(flatTracks: TrackMeta[], profile: ReturnType<typeof getProfile>): BatchRelease[] {
+  return Object.entries(groupReleases(flatTracks)).map(([title, grp]) => {
+    const grpTracks = grp.map((t, i) => ({ ...t, trackNumber: t.trackNumber || String(i + 1) }));
+    const res = validateRelease(grpTracks, profile);
+    return { title, tracks: grpTracks, results: res, grade: getGrade(res) };
+  });
 }
 
 export default function ValidatePage() {
@@ -562,14 +611,9 @@ export default function ValidatePage() {
         const mapped = parsed.data.map(mapCsvRow);
         if (mode === "batch") {
           // Catalog mode: split into releases and validate each independently.
-          const profile = getProfile(profileId);
-          const groups = groupReleases(mapped);
-          const releases: BatchRelease[] = Object.entries(groups).map(([title, grp]) => {
-            const grpTracks = grp.map((t, i) => ({ ...t, trackNumber: t.trackNumber || String(i + 1) }));
-            const res = validateRelease(grpTracks, profile);
-            return { title, tracks: grpTracks, results: res, grade: getGrade(res) };
-          });
-          setBatch(releases);
+          // Retain the flat rows so a later profile switch can re-grade in place.
+          setTracks(mapped.map((t, i) => ({ ...t, trackNumber: t.trackNumber || String(i + 1) })));
+          setBatch(buildBatch(mapped, getProfile(profileId)));
           setExpandedBatch(new Set());
         } else {
           setTracks(mapped.map((t, i) => ({ ...t, trackNumber: t.trackNumber || String(i + 1) })));
@@ -823,7 +867,14 @@ export default function ValidatePage() {
         <select
           id="profile"
           value={profileId}
-          onChange={(e) => { setProfileId(e.target.value); setResults(null); setBatch(null); }}
+          onChange={(e) => {
+            const id = e.target.value;
+            setProfileId(id);
+            setResults(null);
+            // In catalog mode, re-grade the already-loaded catalog under the new
+            // ruleset instead of forcing a full re-upload.
+            setBatch(mode === "batch" && tracks.length ? buildBatch(tracks, getProfile(id)) : null);
+          }}
           className="px-3 py-2 rounded-lg bg-surface border border-border text-sm text-text focus:outline-none focus:border-accent transition-colors"
         >
           {Object.values(PROFILES).map((p) => (
@@ -1044,9 +1095,49 @@ export default function ValidatePage() {
       )}
 
       {/* Batch / catalog results */}
-      {mode === "batch" && batch && (
+      {mode === "batch" && batch && (() => { const health = computeCatalogHealth(batch); return (
         <div className="mt-8 space-y-3">
-          <div className="flex items-center justify-between">
+          {/* Catalog Health Score */}
+          <div className="rounded-xl border border-border bg-bg-card p-6">
+            <div className="flex flex-wrap items-center gap-6">
+              <div className="flex items-center gap-4">
+                <div className={`w-20 h-20 rounded-2xl flex flex-col items-center justify-center shrink-0 font-display ${
+                  health.score >= 85 ? "bg-green-950/60 text-green-500"
+                    : health.score >= 70 ? "bg-yellow-950/60 text-yellow-500"
+                    : "bg-rose-950/60 text-rose-500"
+                }`}>
+                  <span className="text-3xl font-bold leading-none nums">{health.score}</span>
+                  <span className="text-[10px] uppercase tracking-wider opacity-70 mt-0.5">/ 100</span>
+                </div>
+                <div>
+                  <h2 className="font-display text-2xl text-text tracking-tight">Catalog health</h2>
+                  <p className="text-sm text-text-muted nums">
+                    {health.releases} release{health.releases === 1 ? "" : "s"} · {health.tracks} tracks ·{" "}
+                    <span className="text-green-500">{health.cleanReleases} clean</span>
+                  </p>
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-3 sm:ml-auto">
+                <div className="rounded-lg border border-border bg-surface/50 px-4 py-2.5 text-center min-w-[7rem]">
+                  <p className="nums text-xl font-semibold text-rose-400">{health.atRisk}</p>
+                  <p className="text-[11px] text-text-dim leading-tight mt-0.5">releases at risk</p>
+                </div>
+                <div className="rounded-lg border border-border bg-surface/50 px-4 py-2.5 text-center min-w-[7rem]">
+                  <p className="nums text-xl font-semibold text-amber">{health.royaltyRisk}</p>
+                  <p className="text-[11px] text-text-dim leading-tight mt-0.5">with royalty-risk gaps</p>
+                </div>
+              </div>
+            </div>
+            {health.royaltyRisk > 0 && (
+              <p className="text-xs text-text-muted leading-relaxed mt-4 pt-4 border-t border-border">
+                <span className="text-amber font-medium">{health.royaltyRisk} release{health.royaltyRisk === 1 ? " has" : "s have"}</span>{" "}
+                missing or malformed rights data — ISRC/UPC codes, credits, or writer splits.
+                These are exactly the gaps that send streams to the unmatched-royalty black box. Fix them before they cost you.
+              </p>
+            )}
+          </div>
+
+          <div className="flex items-center justify-between pt-2">
             <h2 className="font-display text-2xl text-text tracking-tight">Catalog QC</h2>
             <button
               onClick={() => exportCsv(batch.flatMap((b) => b.tracks))}
@@ -1093,7 +1184,7 @@ export default function ValidatePage() {
             );
           })}
         </div>
-      )}
+      ); })()}
 
       {/* Results */}
       {results && grade && (
