@@ -8,6 +8,8 @@ import { PROFILES, getProfile } from "@/lib/validation/profiles";
 import { checkArtworkFile, scanArtworkText } from "@/lib/validation/artwork";
 import { checkSyncReadiness, CATEGORY_LABEL, type SyncCategory } from "@/lib/validation/sync";
 import { resolveResultFieldKey } from "@/lib/validation/fieldKeys";
+import { classifyPermanence, preflightVerdict, type PermanenceLevel } from "@/lib/validation/permanence";
+import { checkAudioFile, type AudioReport } from "@/lib/audio/check";
 import { exportCsv } from "@/lib/export/csv";
 import { IconCheck, IconClapper, IconArrowRight, IconUpload, IconChevronDown, IconBolt, IconSparkles } from "@/app/_components/icons";
 
@@ -171,14 +173,25 @@ function TrackForm({
   );
 }
 
+// ── Permanence chips (the "it's forever" framing) ─────────────────────────────
+const PERMANENCE_CHIP: Record<PermanenceLevel, { label: string; cls: string }> = {
+  permanent: { label: "Permanent", cls: "bg-red/10 text-red border-red/25" },
+  recoverable: { label: "Editable later", cls: "bg-amber/10 text-amber border-amber/25" },
+  advisory: { label: "Optional", cls: "bg-blue/10 text-blue border-blue/25" },
+};
+
 // ── ResultCard ────────────────────────────────────────────────────────────────
 function ResultCard({
-  result, onApplyFix,
+  result, onApplyFix, showPermanence = true,
 }: {
   result: ValidationResult & { _fixed?: boolean };
   onApplyFix?: (result: ValidationResult) => void;
+  showPermanence?: boolean;
 }) {
   const s = SEV[result.severity];
+  const perm = classifyPermanence(result);
+  const chip = PERMANENCE_CHIP[perm.level];
+  const blocking = result.severity === "critical" || result.severity === "warning";
   return (
     <div className={`rounded-xl border p-4 ${s.border} bg-bg-elevated`}>
       <div className="flex items-start justify-between gap-3">
@@ -192,12 +205,18 @@ function ResultCard({
               {result.trackIndex !== undefined && (
                 <span className="text-xs text-text-dim">track {result.trackIndex + 1}</span>
               )}
+              {showPermanence && !result._fixed && (
+                <span className={`text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded border ${chip.cls}`}>{chip.label}</span>
+              )}
             </div>
             <p className="text-sm text-text leading-relaxed">{result.message}</p>
             {result.suggestion && (
               <p className="text-xs text-text-muted mt-1.5 font-mono">
                 <span className="text-accent-bright">→</span> {result.suggestion}
               </p>
+            )}
+            {showPermanence && perm.level === "permanent" && blocking && !result._fixed && (
+              <p className="text-xs text-red/80 mt-2 leading-relaxed border-l-2 border-red/25 pl-2.5">{perm.costToUndo}</p>
             )}
           </div>
         </div>
@@ -405,6 +424,123 @@ function SyncPanel({
   );
 }
 
+// ── Audio pre-flight panel (the moat: reads the actual waveform) ──────────────
+function fmtSignedDb(n: number): string {
+  return `${n > 0 ? "+" : ""}${n.toFixed(1)}`;
+}
+
+function AudioPanel({
+  report, checking, error, name, track, onUpload, onUseDetected,
+}: {
+  report: AudioReport | null;
+  checking: boolean;
+  error: string | null;
+  name: string | null;
+  track: TrackMeta;
+  onUpload: () => void;
+  onUseDetected: (key: keyof TrackMeta, val: string) => void;
+}) {
+  const tk = report?.analysis.tempoKey;
+  const showBpm = !!(tk?.bpm && tk.bpmConfidence >= 0.6 && !(track.bpm || "").trim());
+  const showKey = !!(tk?.key && tk.keyConfidence >= 0.55 && !(track.musicalKey || "").trim());
+
+  return (
+    <div className="mt-6 rounded-xl border border-border bg-bg-elevated p-5">
+      <div className="flex items-center justify-between gap-3 mb-3">
+        <div className="flex items-center gap-2">
+          <span className="w-8 h-8 rounded-lg bg-accent/10 text-accent-bright flex items-center justify-center shrink-0"><IconBolt size={16} /></span>
+          <div>
+            <div className="flex items-center gap-2">
+              <h3 className="text-sm font-medium text-text">Audio pre-flight</h3>
+              <span className="text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded bg-accent/10 text-accent-bright border border-accent/20">New</span>
+            </div>
+            <p className="text-xs text-text-dim mt-0.5">Drop your master — loudness, true-peak &amp; clipping, checked in your browser. The file never leaves your device.</p>
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={onUpload}
+          className="press shrink-0 px-4 py-2 rounded-lg bg-surface border border-border text-sm text-text-muted hover:text-text transition-colors"
+        >
+          {name ? "Change file" : "Upload master"}
+        </button>
+      </div>
+
+      {name && <p className="text-xs font-mono text-text-dim mb-3 truncate">{name}</p>}
+      {checking && <p className="text-sm text-text-muted">Decoding &amp; measuring loudness… (a few seconds for a full track)</p>}
+      {error && <p className="text-sm text-red">{error}</p>}
+
+      {report && (
+        <div className="space-y-4">
+          {/* Headline stats */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            {[
+              { label: "Loudness", value: `${report.analysis.loudness.integratedLufs}`, unit: "LUFS" },
+              { label: "True peak", value: fmtSignedDb(report.analysis.loudness.truePeakDbtp), unit: "dBTP" },
+              { label: "Range", value: `${report.analysis.loudness.loudnessRangeLu}`, unit: "LU" },
+              { label: "Sample rate", value: `${(report.analysis.sampleRate / 1000).toFixed(1)}`, unit: "kHz" },
+            ].map((s) => (
+              <div key={s.label} className="rounded-lg border border-border bg-surface/40 px-3 py-2.5">
+                <p className="text-[11px] text-text-dim">{s.label}</p>
+                <p className="text-lg text-text font-display tracking-tight leading-tight nums">
+                  {s.value}<span className="text-xs text-text-dim ml-1">{s.unit}</span>
+                </p>
+              </div>
+            ))}
+          </div>
+
+          {/* Verdict rows (reuse the artwork row treatment — same shape) */}
+          <div className="space-y-2">
+            {report.results.map((a, i) => (
+              <ArtworkRow key={i} a={a} />
+            ))}
+          </div>
+
+          {/* Per-DSP normalization matrix */}
+          <div className="rounded-lg border border-border bg-surface/30 overflow-hidden">
+            <div className="px-4 py-2.5 border-b border-border">
+              <p className="eyebrow">What each platform does to your loudness</p>
+            </div>
+            <div className="divide-y divide-border">
+              {report.matrix.map((row) => (
+                <div key={row.dsp} className="flex items-center justify-between px-4 py-2.5">
+                  <span className="text-sm text-text">{row.dsp}</span>
+                  <span className={`text-xs nums ${row.gainDb <= -1 ? "text-amber" : row.gainDb >= 1 ? "text-blue" : "text-green-400"}`}>{row.note}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Detected BPM / key → offer to fill the Sync-Ready fields */}
+          {(showBpm || showKey) && (
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs text-text-dim">Detected (estimate):</span>
+              {showBpm && (
+                <button
+                  type="button"
+                  onClick={() => onUseDetected("bpm", String(tk!.bpm))}
+                  className="press inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-accent/10 text-accent-bright border border-accent/20 text-xs font-medium hover:bg-accent/20 transition-colors"
+                >
+                  Use {tk!.bpm} BPM
+                </button>
+              )}
+              {showKey && (
+                <button
+                  type="button"
+                  onClick={() => onUseDetected("musicalKey", tk!.key!)}
+                  className="press inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-accent/10 text-accent-bright border border-accent/20 text-xs font-medium hover:bg-accent/20 transition-colors"
+                >
+                  Use key {tk!.key}
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Main page ─────────────────────────────────────────────────────────────────
 type Mode = "single" | "multi" | "csv" | "batch";
 
@@ -510,6 +646,11 @@ export default function ValidatePage() {
   const [artworkTextResults, setArtworkTextResults] = useState<ArtworkCheckResult[] | null>(null);
   const [artworkScanning, setArtworkScanning] = useState(false);
   const [artworkFile, setArtworkFile] = useState<File | null>(null);
+  // Audio pre-flight (loudness / true-peak / clipping) — 100% client-side.
+  const [audioName, setAudioName] = useState<string | null>(null);
+  const [audioReport, setAudioReport] = useState<AudioReport | null>(null);
+  const [audioChecking, setAudioChecking] = useState(false);
+  const [audioError, setAudioError] = useState<string | null>(null);
   // Sync-Ready (music-supervision) panel — opt-in to keep the page uncluttered.
   const [showSync, setShowSync] = useState(false);
   // Onboarding: paste-a-row box + "picked up where you left off" handoff banner.
@@ -518,6 +659,7 @@ export default function ValidatePage() {
   const [handoff, setHandoff] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const artworkInputRef = useRef<HTMLInputElement>(null);
+  const audioInputRef = useRef<HTMLInputElement>(null);
 
   // Load a track straight into the single-track form AND grade it immediately, so
   // the user sees a result without a separate "Run" click.
@@ -672,6 +814,27 @@ export default function ValidatePage() {
       setArtworkTextResults([{ severity: "warning", rule: "artwork_ocr_error", message: "Text scan failed to run — you can still check the artwork by eye for URLs or handles." }]);
     } finally {
       setArtworkScanning(false);
+    }
+  };
+
+  // ── Audio pre-flight ──────────────────────────────────────────────
+  // Decode + measure entirely client-side; the master is never uploaded. Cross-
+  // checks against the typed track[0] (duration / BPM / key) where present.
+  const handleAudioUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setAudioName(file.name);
+    setAudioError(null);
+    setAudioReport(null);
+    setAudioChecking(true);
+    // Yield a frame so the "Decoding…" state paints before the synchronous DSP runs.
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    try {
+      setAudioReport(await checkAudioFile(file, tracks[0]));
+    } catch (err) {
+      setAudioError(err instanceof Error ? err.message : "Couldn't analyse this audio file.");
+    } finally {
+      setAudioChecking(false);
     }
   };
 
@@ -836,6 +999,7 @@ export default function ValidatePage() {
   // "Auto-fix All", and the same stale numbers get written to history on save.
   const activeResults = results?.filter((r) => !r._fixed) ?? [];
   const grade = results ? getGrade(activeResults) : null;
+  const verdict = results ? preflightVerdict(activeResults) : null;
   const criticals = activeResults.filter((r) => r.severity === "critical");
   const warnings = activeResults.filter((r) => r.severity === "warning");
   const suggestions = activeResults.filter((r) => r.severity === "suggestion");
@@ -1013,6 +1177,29 @@ export default function ValidatePage() {
         >
           {isRunning ? "Scanning…" : <>Run validation <IconArrowRight size={16} /></>}
         </button>
+      )}
+
+      {/* Audio pre-flight (loudness / true-peak / clipping) — the moat */}
+      {mode !== "batch" && (
+        <>
+          <AudioPanel
+            report={audioReport}
+            checking={audioChecking}
+            error={audioError}
+            name={audioName}
+            track={tracks[0] ?? emptyTrack(1)}
+            onUpload={() => audioInputRef.current?.click()}
+            onUseDetected={(key, val) => updateTrackKeepResults(0, key, val)}
+          />
+          <input
+            ref={audioInputRef}
+            type="file"
+            accept="audio/*,.wav,.mp3,.flac,.m4a,.aac,.ogg,.aiff"
+            aria-label="Upload audio master"
+            className="hidden"
+            onChange={handleAudioUpload}
+          />
+        </>
       )}
 
       {/* Artwork QC */}
@@ -1198,6 +1385,42 @@ export default function ValidatePage() {
       {/* Results */}
       {results && grade && (
         <div className="mt-10 space-y-6">
+          {/* Pre-flight verdict — the "is this permanent?" headline */}
+          {verdict && (
+            <div className={`rounded-2xl border p-6 ${
+              verdict.safe
+                ? "border-green/30 bg-green-950/30"
+                : verdict.permanentCount > 0
+                  ? "border-red/30 bg-rose-950/30"
+                  : "border-amber/30 bg-amber-950/20"
+            }`}>
+              <div className="flex items-start gap-4">
+                <span className={`mt-0.5 w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
+                  verdict.safe ? "bg-green/15 text-green" : verdict.permanentCount > 0 ? "bg-red/15 text-red" : "bg-amber/15 text-amber"
+                }`}>
+                  {verdict.safe ? <IconCheck size={20} /> : <IconBolt size={20} />}
+                </span>
+                <div className="min-w-0">
+                  <h2 className="font-display text-2xl text-text tracking-tight leading-tight">{verdict.headline}</h2>
+                  <p className="text-sm text-text-muted mt-1.5 leading-relaxed">{verdict.subline}</p>
+                  {(verdict.permanentCount > 0 || verdict.recoverableCount > 0) && (
+                    <div className="flex flex-wrap gap-2 mt-3">
+                      {verdict.permanentCount > 0 && (
+                        <span className="text-xs px-2.5 py-1 rounded-full border border-red/25 bg-red/10 text-red nums">{verdict.permanentCount} permanent</span>
+                      )}
+                      {verdict.recoverableCount > 0 && (
+                        <span className="text-xs px-2.5 py-1 rounded-full border border-amber/25 bg-amber/10 text-amber nums">{verdict.recoverableCount} editable later</span>
+                      )}
+                      {verdict.advisoryCount > 0 && (
+                        <span className="text-xs px-2.5 py-1 rounded-full border border-blue/25 bg-blue/10 text-blue nums">{verdict.advisoryCount} optional</span>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Grade card */}
           <div className="rounded-xl border border-border bg-bg-card p-6 flex items-center gap-6">
             <div

@@ -13,7 +13,68 @@ The core metadata-checking feature was audited and substantially expanded on
 — see **19 June 2026 pass**. On 20 June 2026 the landing page got its final
 "Robinhood-style" redesign + a Playwright e2e suite, an audit-follow-ups bug
 pass, and an **onboarding/paywall funnel pass** shipped — see the **20 June 2026**
-sections immediately below.
+sections immediately below. On 20 June 2026 a **strategic pivot** began — see the
+**Pivot** section immediately below.
+
+---
+
+## 20 June 2026 — PIVOT: pre-release safety check (Ship 1 + Ship 2)
+
+Built on branch `worktree-pivot-preflight-audio` (NOT yet merged to main / deployed).
+`npm run build` ✓, Playwright e2e ✓ (10/10, public surface unregressed).
+
+**Why:** a forum-research pass (Reddit/music forums, ~70 verified pain points)
+confirmed the original "metadata validator" largely duplicates the free QC that
+DistroKid/TuneCore/CD Baby already do at upload, has no moat, and only checks the
+easy text/artwork half. The durable moat is **"we hold your audio + your catalog
+history"** — things a chatbot and a distributor both physically lack. Repositioning:
+from *"will my title get rejected"* → **"catch the permanent, money-losing mistakes
+you can't undo after you hit distribute."**
+
+### Ship 1 — Permanent-Mistake Pre-Flight (the free front-door reframe)
+- **`lib/validation/permanence.ts`** (new) — classifies every existing
+  `ValidationResult` into `permanent` / `recoverable` / `advisory` with a
+  "cost to undo after release" line. NO new rules — pure reframing of the shipped
+  engine around irreversibility (the moat is the framing + the it's-forever cost).
+- **`/validate`**: a **pre-flight verdict card** now leads the results — "Safe to
+  release" vs "STOP — N permanent mistakes" — weighted by permanence, not raw
+  severity. Each `ResultCard` carries a permanence chip + (for permanent blockers)
+  the cost-to-undo line. The public demo (`app/demo.tsx`) shows a compact
+  "N permanent" chip in its grade header.
+
+### Ship 2 — Audio pre-flight (the moat: reads the actual waveform)
+- **`lib/audio/`** (new, 100% client-side, zero new deps — the master never leaves
+  the browser, mirroring the artwork-QC pattern):
+  - `decode.ts` — Web Audio `decodeAudioData` (adapted from cue-track's
+    `client-decode.ts`); caps analysis at 12 min.
+  - `loudness.ts` — **hand-rolled ITU-R BS.1770-4**: K-weighting biquads computed
+    for the file's own sample rate, gated integrated LUFS, EBU TECH 3342 loudness
+    range, **4× polyphase true-peak**, consecutive-full-scale clipping. Verified
+    against synthetic signals (−20 dBFS 1 kHz sine → −23.0 LUFS, full-scale → 0
+    dBFS / −3.0 LUFS — textbook-exact).
+  - `tempoKey.ts` — **advisory** BPM (onset-novelty autocorrelation, onset-count
+    gated, z-score confidence) + key (Krumhansl–Schmuckler chroma). Surfaced only
+    above a confidence floor and only as a cross-check / "use detected" chip —
+    never asserted (trust = being right).
+  - `check.ts` — orchestrates decode→measure→estimate, builds plain-English
+    verdicts + a **per-DSP loudness matrix** (Spotify/Apple/YouTube/Amazon/Tidal
+    turn-down), and cross-checks the typed track (duration/BPM/key mismatch).
+  - `types.ts` — shared audio types; `AudioCheckResult` mirrors `ArtworkCheckResult`
+    so the UI reuses the artwork row component.
+- **`/validate`**: an **Audio pre-flight panel** (opt-in, above Artwork QC) — drop a
+  master → loudness/true-peak/clipping stats, verdict rows, the per-DSP matrix, and
+  "Use detected BPM/key" chips that fill the Sync-Ready fields via
+  `updateTrackKeepResults`.
+
+### Still TODO on the pivot (not built yet)
+- **Ship 3 — Migration Pre-Flight** (old-vs-new ISRC/UPC diff + correct takedown
+  order) — reuses the iTunes proxy + GS1/ISRC validators.
+- **Rename** — "MetaCheck" is being replaced (name TBD).
+- **Landing/tagline rewrite** around "catch what's permanent before you hit
+  distribute" + the audio moat; pricing → one flat tier, audio behind it.
+- **Operator:** smoke-test the audio panel on a Vercel preview (needs Clerk keys;
+  can't run the auth-gated `/validate` locally without them). No new env vars, no
+  migrations, no new deps in this pass.
 
 ---
 
