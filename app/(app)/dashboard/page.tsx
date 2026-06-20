@@ -31,7 +31,9 @@ export default async function DashboardPage() {
   const validations = usage?.validations ?? 0;
   const aiCalls = usage?.ai_calls ?? 0;
   const validationLimit = tier === "free" ? 3 : null;
-  const aiLimit = tier === "free" ? 0 : tier === "pro" ? 300 : 1500;
+  // Free tier gets one "taste" AI fix/month (FREE_AI_TASTE in lib/auth) — show it
+  // as 1 so the stat matches what the user can actually do, not 0.
+  const aiLimit = tier === "free" ? 1 : tier === "pro" ? 300 : 1500;
 
   const GRADE_CLASSES: Record<string, { text: string; bg: string }> = {
     A: { text: "text-green-500", bg: "bg-green-500/10" },
@@ -122,7 +124,10 @@ export default async function DashboardPage() {
           </p>
           {tier === "free" && (
             <p className="mt-2 text-xs text-text-dim">
-              <Link href="/settings" className="text-accent-bright hover:underline">Upgrade to Pro</Link> for AI fixes
+              {aiCalls >= 1 ? "Free AI fix used · " : "1 free AI fix included · "}
+              <Link href="/settings" className="text-accent-bright hover:underline">
+                {aiCalls >= 1 ? "Upgrade for unlimited" : "Upgrade to Pro"}
+              </Link>
             </p>
           )}
         </div>

@@ -59,7 +59,7 @@ export default async function SettingsPage({
             <p className="text-lg font-semibold capitalize text-text">{tier}</p>
             <p className="text-sm text-text-muted">
               {tier === "free"
-                ? "3 validations/month · No AI"
+                ? "3 saved releases/month · 1 free AI fix/month"
                 : tier === "pro"
                   ? "Unlimited · 300 AI calls/month"
                   : "Unlimited · 1500 AI calls/month"}

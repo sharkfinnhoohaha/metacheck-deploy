@@ -234,7 +234,7 @@ export default function Home() {
             {[
               {
                 name: "Free", price: "$0", interval: "",
-                features: ["3 releases per month", "All 40+ validation rules", "Artwork checks", "Sync-Ready score", "CSV export"],
+                features: ["3 releases per month", "All 40+ validation rules", "1 AI fix per month", "Artwork checks", "Sync-Ready score", "CSV export"],
                 cta: "Get started free", href: "/sign-up", highlight: false,
               },
               {

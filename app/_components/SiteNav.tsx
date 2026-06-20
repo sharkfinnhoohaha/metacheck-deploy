@@ -17,6 +17,7 @@ export function SiteNav() {
         </Link>
         <div className="flex items-center gap-1 sm:gap-2">
           <Link href="/features" className="hidden sm:block text-sm text-text-muted hover:text-text transition-colors px-3 py-2 rounded-lg">Features</Link>
+          <Link href="/release-planner" className="hidden md:block text-sm text-text-muted hover:text-text transition-colors px-3 py-2 rounded-lg">Free planner</Link>
           <Link href="/#demo" className="hidden sm:block text-sm text-text-muted hover:text-text transition-colors px-3 py-2 rounded-lg">Demo</Link>
           <Link href="/#pricing" className="hidden sm:block text-sm text-text-muted hover:text-text transition-colors px-3 py-2 rounded-lg">Pricing</Link>
           <Link href="/sign-in" className="text-sm text-text-muted hover:text-text transition-colors px-3 py-2 rounded-lg">Sign in</Link>

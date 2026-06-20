@@ -1,10 +1,11 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { validateTrack, getGrade as computeGrade } from "@/lib/validation/rules";
 import type { TrackMeta, ValidationResult, AiFix } from "@/lib/validation/types";
 import { resolveResultFieldKey } from "@/lib/validation/fieldKeys";
-import { IconSearch, IconSparkles, IconCheck } from "./_components/icons";
+import { IconSearch, IconSparkles, IconCheck, IconArrowRight, IconLock } from "./_components/icons";
 
 // Shape of a track returned by the iTunes-backed /api/music/search endpoint.
 type SearchItem = {
@@ -52,6 +53,9 @@ export function LiveDemo() {
   const [results, setResults] = useState<ValidationResult[] | null>(null);
   const [isFixing, setIsFixing] = useState(false);
   const [aiFixes, setAiFixes] = useState<AiFix[]>([]);
+  // The public demo is anonymous, so /api/ai/fix serves deterministic rule-based
+  // fixes (source: "rules"). Surface that honestly + nudge to sign up for real AI.
+  const [aiRanRules, setAiRanRules] = useState(false);
 
   const handleSearch = async (val: string) => {
     setQuery(val);
@@ -92,6 +96,7 @@ export function LiveDemo() {
     setSearchResults([]);
     setQuery("");
     setAiFixes([]);
+    setAiRanRules(false);
     // Hand the checked release off to /validate so signup continues, not restarts.
     try {
       localStorage.setItem("metacheck_pending_release", JSON.stringify({ track, ts: Date.now() }));
@@ -116,6 +121,7 @@ export function LiveDemo() {
       const data = await res.json();
       if (data.data?.fixes) {
         setAiFixes(data.data.fixes);
+        setAiRanRules(data.data.source === "rules");
       } else if (data.error) {
         console.error("AI Fix error:", data.error);
         alert(data.error);
@@ -239,7 +245,14 @@ export function LiveDemo() {
             {/* AI Fixes highlight */}
             {aiFixes.length > 0 && (
               <div className="mb-4 space-y-2">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-accent-bright">AI suggestions</p>
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-accent-bright">Suggested fixes</p>
+                  {aiRanRules && (
+                    <span className="inline-flex items-center gap-1 text-[10px] text-text-dim">
+                      <IconLock size={11} /> Sign up for AI-written fixes
+                    </span>
+                  )}
+                </div>
                 {aiFixes.map((fix, i) => (
                   <div key={i} className="p-3 rounded-xl border border-accent/20 bg-accent/5 flex items-center justify-between gap-3">
                     <div className="min-w-0">
@@ -292,6 +305,28 @@ export function LiveDemo() {
                   );
                 })
               )}
+            </div>
+
+            {/* Conversion bridge — the "aha" just happened; carry the user into
+                sign-up. The checked release is already stashed in localStorage
+                (selectTrack), so /validate resumes it after auth. */}
+            <div className="mt-5 pt-5 border-t border-border flex flex-col sm:flex-row sm:items-center gap-3">
+              <div className="flex-1 min-w-0">
+                <p className="text-sm text-text font-medium">
+                  {results?.length === 0
+                    ? "Want to check your own unreleased tracks?"
+                    : "Fix these on your own release in one click."}
+                </p>
+                <p className="text-xs text-text-dim mt-0.5">
+                  Free account · we&apos;ll pick up right where you left off · no credit card.
+                </p>
+              </div>
+              <Link
+                href="/sign-up"
+                className="press glow-teal shrink-0 inline-flex items-center justify-center gap-1.5 px-5 py-2.5 rounded-lg bg-accent text-white text-sm font-semibold hover:bg-accent-bright transition-colors"
+              >
+                Check my release free <IconArrowRight size={15} />
+              </Link>
             </div>
           </div>
         )}
