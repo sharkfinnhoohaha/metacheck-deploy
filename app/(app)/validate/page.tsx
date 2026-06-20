@@ -9,9 +9,10 @@ import { checkArtworkFile, scanArtworkText } from "@/lib/validation/artwork";
 import { checkSyncReadiness, CATEGORY_LABEL, type SyncCategory } from "@/lib/validation/sync";
 import { resolveResultFieldKey } from "@/lib/validation/fieldKeys";
 import { classifyPermanence, preflightVerdict, type PermanenceLevel } from "@/lib/validation/permanence";
+import { diffMigration } from "@/lib/validation/migration";
 import { checkAudioFile, type AudioReport } from "@/lib/audio/check";
 import { exportCsv } from "@/lib/export/csv";
-import { IconCheck, IconClapper, IconArrowRight, IconUpload, IconChevronDown, IconBolt, IconSparkles } from "@/app/_components/icons";
+import { IconCheck, IconClapper, IconArrowRight, IconUpload, IconChevronDown, IconBolt, IconSparkles, IconFingerprint } from "@/app/_components/icons";
 
 // ── CSV column auto-mapping ───────────────────────────────────────────────────
 const CSV_MAP: Record<string, keyof TrackMeta> = {
@@ -541,6 +542,145 @@ function AudioPanel({
   );
 }
 
+// ── Migration Pre-Flight panel (switching distributors / re-uploading) ────────
+const MIG_SEV: Record<string, string> = {
+  critical: "bg-red", warning: "bg-amber", suggestion: "bg-text-dim", success: "bg-green-500",
+};
+
+type OldRelease = { isrc: string; upc: string; title: string; artist: string; duration: string };
+
+function MigrationPanel({ newTrack }: { newTrack: TrackMeta }) {
+  const [old, setOld] = useState<OldRelease>({ isrc: "", upc: "", title: "", artist: "", duration: "" });
+  const [q, setQ] = useState("");
+  const [searching, setSearching] = useState(false);
+  const [hits, setHits] = useState<{ title: string; artist: string; album: string; duration: string }[]>([]);
+
+  const report = diffMigration(old, {
+    isrc: newTrack.isrc, upc: newTrack.upc, title: newTrack.title, artist: newTrack.artist, duration: newTrack.duration,
+  });
+
+  const runSearch = async () => {
+    if (!q.trim()) return;
+    setSearching(true);
+    try {
+      const res = await fetch(`/api/music/search?q=${encodeURIComponent(q)}`);
+      const json = await res.json();
+      setHits((json.results ?? []).slice(0, 5));
+    } catch {
+      setHits([]);
+    } finally {
+      setSearching(false);
+    }
+  };
+
+  const pick = (h: { title: string; artist: string; duration: string }) => {
+    // Autofill the old DISPLAY fields (the stores don't expose ISRC/UPC, so those
+    // stay manual). Duration comes back in seconds from the proxy.
+    setOld((o) => ({ ...o, title: h.title, artist: h.artist, duration: h.duration }));
+    setHits([]);
+    setQ("");
+  };
+
+  const setField = (k: keyof OldRelease, v: string) => setOld((o) => ({ ...o, [k]: v }));
+
+  return (
+    <div className="mt-5 pt-5 border-t border-border space-y-5">
+      {/* Verdict */}
+      <div className={`rounded-xl border p-4 ${
+        report.safe ? "border-green/30 bg-green-950/20"
+          : report.fields.some((f) => f.severity === "critical") ? "border-red/30 bg-rose-950/20"
+          : report.hasOldData && report.blocking > 0 ? "border-amber/30 bg-amber-950/15"
+          : "border-border bg-surface/30"
+      }`}>
+        <h4 className="font-display text-lg text-text tracking-tight leading-tight">{report.headline}</h4>
+        <p className="text-sm text-text-muted mt-1 leading-relaxed">{report.subline}</p>
+      </div>
+
+      {/* Old release inputs + search autofill */}
+      <div className="rounded-xl border border-border bg-surface/30 p-4 space-y-3">
+        <p className="eyebrow">Your existing (live) release</p>
+        <div className="flex gap-2">
+          <input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && runSearch()}
+            placeholder="Search the stores to autofill title/artist/duration…"
+            className="flex-1 px-3 py-2 rounded-lg bg-bg border border-border text-sm text-text placeholder-text-dim focus:outline-none focus:border-accent transition-colors"
+          />
+          <button type="button" onClick={runSearch} disabled={searching} className="press shrink-0 px-3 py-2 rounded-lg bg-surface border border-border text-sm text-text-muted hover:text-text transition-colors disabled:opacity-50">
+            {searching ? "…" : "Search"}
+          </button>
+        </div>
+        {hits.length > 0 && (
+          <div className="space-y-1">
+            {hits.map((h, i) => (
+              <button key={i} type="button" onClick={() => pick(h)} className="w-full text-left px-3 py-2 rounded-lg border border-border bg-bg hover:border-accent/50 transition-colors">
+                <span className="text-sm text-text">{h.title}</span>
+                <span className="text-xs text-text-dim"> · {h.artist} · {h.album}</span>
+              </button>
+            ))}
+          </div>
+        )}
+        <div className="grid grid-cols-2 gap-2">
+          {([
+            { k: "isrc", label: "Old ISRC", ph: "from your old distributor" },
+            { k: "upc", label: "Old UPC", ph: "from your old distributor" },
+            { k: "title", label: "Old title", ph: "exact title" },
+            { k: "artist", label: "Old artist", ph: "exact artist" },
+            { k: "duration", label: "Old duration", ph: "3:45" },
+          ] as { k: keyof OldRelease; label: string; ph: string }[]).map((f) => (
+            <div key={f.k} className={f.k === "duration" ? "col-span-2 sm:col-span-1" : ""}>
+              <label className="block text-xs text-text-dim mb-1">{f.label}</label>
+              <input
+                value={old[f.k]}
+                onChange={(e) => setField(f.k, e.target.value)}
+                placeholder={f.ph}
+                className="w-full px-3 py-2 rounded-lg bg-bg border border-border text-sm text-text placeholder-text-dim focus:outline-none focus:border-accent transition-colors"
+              />
+            </div>
+          ))}
+        </div>
+        <p className="text-[11px] text-text-dim">The stores don&apos;t expose ISRC/UPC — paste those from your old distributor&apos;s dashboard. Title/artist/duration can be auto-filled by search.</p>
+      </div>
+
+      {/* Field diff */}
+      {report.hasOldData && (
+        <div className="space-y-2">
+          <p className="eyebrow">Old vs. new upload</p>
+          {report.fields.map((f) => (
+            <div key={f.key} className="rounded-lg border border-border bg-bg-elevated px-4 py-3">
+              <div className="flex items-start gap-3">
+                <span className={`mt-1.5 w-2 h-2 rounded-full shrink-0 ${MIG_SEV[f.severity]}`} />
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-xs text-text-muted">{f.label}</span>
+                    {f.oldValue && <span className="text-xs font-mono text-text-dim">old: <span className="text-text-muted">{f.oldValue}</span></span>}
+                    {f.newValue && <span className="text-xs font-mono text-text-dim">new: <span className="text-text-muted">{f.newValue}</span></span>}
+                  </div>
+                  <p className="text-sm text-text leading-relaxed mt-1">{f.note}</p>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Takedown order */}
+      <div className="rounded-xl border border-accent/20 bg-accent/5 p-4">
+        <p className="eyebrow mb-2">The safe order — getting this backwards is what loses streams</p>
+        <ol className="space-y-1.5">
+          {report.takedownSteps.map((s, i) => (
+            <li key={i} className="flex gap-2.5 text-sm text-text-muted leading-relaxed">
+              <span className="shrink-0 w-5 h-5 rounded-full bg-accent/10 text-accent-bright text-xs flex items-center justify-center mt-0.5">{i + 1}</span>
+              {s}
+            </li>
+          ))}
+        </ol>
+      </div>
+    </div>
+  );
+}
+
 // ── Main page ─────────────────────────────────────────────────────────────────
 type Mode = "single" | "multi" | "csv" | "batch";
 
@@ -653,6 +793,8 @@ export default function ValidatePage() {
   const [audioError, setAudioError] = useState<string | null>(null);
   // Sync-Ready (music-supervision) panel — opt-in to keep the page uncluttered.
   const [showSync, setShowSync] = useState(false);
+  // Migration Pre-Flight panel — opt-in (only relevant when switching distributors).
+  const [showMigration, setShowMigration] = useState(false);
   // Onboarding: paste-a-row box + "picked up where you left off" handoff banner.
   const [showPaste, setShowPaste] = useState(false);
   const [pasteText, setPasteText] = useState("");
@@ -1287,6 +1429,34 @@ export default function ValidatePage() {
               <SyncPanel track={tracks[0]} onChange={(key, val) => updateTrackKeepResults(0, key, val)} />
             </div>
           )}
+        </div>
+      )}
+
+      {/* Migration Pre-Flight (switching distributors / re-uploading a remaster) */}
+      {mode !== "batch" && tracks.length > 0 && (
+        <div className="mt-6 rounded-2xl border border-border bg-bg-elevated p-5">
+          <button
+            type="button"
+            onClick={() => setShowMigration((v) => !v)}
+            className="w-full flex items-center gap-3 text-left"
+          >
+            <span className="w-9 h-9 rounded-lg bg-accent/10 text-accent-bright flex items-center justify-center shrink-0">
+              <IconFingerprint size={18} />
+            </span>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2">
+                <h3 className="text-sm font-medium text-text">Switching distributors?</h3>
+                <span className="text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded bg-accent/10 text-accent-bright border border-accent/20">New</span>
+              </div>
+              <p className="text-xs text-text-dim mt-0.5">
+                Re-uploading or moving distributor? Check it won&apos;t reset your streams. {showMigration ? "" : "Tap to check."}
+              </p>
+            </div>
+            <span className={`text-text-dim transition-transform duration-300 ${showMigration ? "rotate-90" : ""}`}>
+              <IconArrowRight size={18} />
+            </span>
+          </button>
+          {showMigration && <MigrationPanel newTrack={tracks[0] ?? emptyTrack(1)} />}
         </div>
       )}
 
