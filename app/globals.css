@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=IBM+Plex+Mono:wght@400;500;600&family=Outfit:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Outfit:wght@300;400;500;600;700;800&display=swap');
 @import "tailwindcss";
 
 @theme {
@@ -18,7 +18,7 @@
   --color-amber: #f59e0b;
   --color-blue: #3b82f6;
   --color-green: #22c55e;
-  --font-display: 'Instrument Serif', Georgia, serif;
+  --font-display: 'Outfit', system-ui, sans-serif;
   --font-body: 'Outfit', system-ui, sans-serif;
   --font-mono: 'IBM Plex Mono', monospace;
 
@@ -40,6 +40,13 @@
   ::selection {
     background: var(--color-accent);
     color: white;
+  }
+  /* Display headings: geometric sans, heavy + tight — a clean, modern, Robinhood-
+     style treatment. Lives in base so Tailwind weight/tracking utilities still win. */
+  .font-display {
+    font-family: var(--font-display);
+    font-weight: 700;
+    letter-spacing: -0.035em;
   }
   /* Consistent, calm focus ring across interactive elements */
   :focus-visible {
