@@ -629,5 +629,8 @@ export function getGrade(results: ValidationResult[]): { letter: Grade; color: s
   const score = c + Math.floor(w / 3);
   if (score <= 1) return { letter: "C", color: "#eab308", bg: "#2e2505", label: "Needs work" };
   if (score <= 3) return { letter: "D", color: "#f97316", bg: "#2e1a05", label: "Major issues" };
-  return { letter: "F", color: "#f43f5e", bg: "#2e050d", label: "Critical failures" };
+  // F can now be reached purely by warning volume (score = c + ⌊w/3⌋), so the label
+  // must not claim "Critical failures" when there are none — that would contradict
+  // the "0 critical · N warnings" breakdown shown right beside it.
+  return { letter: "F", color: "#f43f5e", bg: "#2e050d", label: c === 0 ? "Too many issues" : "Critical failures" };
 }

@@ -691,7 +691,10 @@ export default function ValidatePage() {
     const idx = result.trackIndex ?? 0;
     const fieldKey = resolveFieldKey(result.field);
     if (!fieldKey) return; // unknown field — can't apply it
-    const updated = fixedTracks.map((t, i) => i === idx ? { ...t, [fieldKey]: result.suggestion! } : t);
+    // Derive from the LIVE `tracks` (not the frozen `fixedTracks` snapshot), so
+    // Sync-Ready edits made after validation — bpm/key/mood/contact/toggles via
+    // updateTrackKeepResults — survive. This genuinely mirrors applyAiFix.
+    const updated = tracks.map((t, i) => i === idx ? { ...t, [fieldKey]: result.suggestion! } : t);
     setFixedTracks(updated);
     setTracks(updated);
     setResults(validateRelease(updated, getProfile(profileId)).map((r) => ({ ...r, _fixed: false })));
@@ -701,7 +704,9 @@ export default function ValidatePage() {
   // Auto-fix all fixable, then re-validate once. Same re-grade rationale as applyFix.
   const applyAllFixes = () => {
     const fixable = results?.filter((r) => r.fixable && r.suggestion) ?? [];
-    let updated = [...fixedTracks];
+    // Base off the LIVE `tracks` so post-validation Sync-Ready edits aren't wiped
+    // (see applyFix). `fixedTracks` is a stale snapshot from validation time.
+    let updated = [...tracks];
     // Two fixable rules can target the same cell (e.g. several Title rules). Apply
     // the FIRST per cell; re-validation then reports whether the rest still fire.
     const writtenCells = new Set<string>();
