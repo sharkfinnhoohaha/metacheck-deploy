@@ -126,7 +126,7 @@ export default async function DashboardPage() {
             <p className="mt-2 text-xs text-text-dim">
               {aiCalls >= 1 ? "Free AI fix used · " : "1 free AI fix included · "}
               <Link href="/settings" className="text-accent-bright hover:underline">
-                {aiCalls >= 1 ? "Upgrade for unlimited" : "Upgrade to Pro"}
+                {aiCalls >= 1 ? "Upgrade for 300 AI fixes/mo" : "Upgrade to Pro"}
               </Link>
             </p>
           )}

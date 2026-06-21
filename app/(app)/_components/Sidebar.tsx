@@ -3,18 +3,21 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { UserButton } from "@clerk/nextjs";
-import { IconGrid, IconCheckShield, IconClock, IconSliders, IconBolt } from "@/app/_components/icons";
+import { IconGrid, IconCheckShield, IconClock, IconSliders, IconBolt, IconNote } from "@/app/_components/icons";
 
 const NAV = [
   { href: "/dashboard", label: "Dashboard", Icon: IconGrid },
   { href: "/validate", label: "Validate", Icon: IconCheckShield },
   { href: "/history", label: "History", Icon: IconClock },
   { href: "/settings", label: "Settings", Icon: IconSliders },
+  { href: "/support", label: "Support", Icon: IconNote },
 ];
 
 export function Sidebar({ isAdmin = false }: { isAdmin?: boolean }) {
   const pathname = usePathname();
-  const nav = isAdmin ? [...NAV, { href: "/admin", label: "Admin", Icon: IconBolt }] : NAV;
+  const nav = isAdmin
+    ? [...NAV, { href: "/admin", label: "Admin", Icon: IconBolt }, { href: "/admin/support", label: "Support inbox", Icon: IconNote }]
+    : NAV;
   return (
     <aside className="fixed left-0 top-0 h-screen w-60 flex flex-col border-r border-border bg-bg-elevated/70 backdrop-blur-xl z-30">
       {/* Logo */}

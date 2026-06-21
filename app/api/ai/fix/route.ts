@@ -133,7 +133,7 @@ export async function POST(req: Request) {
         return Response.json(
           {
             data: null,
-            error: "You've used your free AI fix this month. Upgrade to Pro for unlimited AI-powered fixes, or buy a release credit.",
+            error: "You've used your free AI fix this month. Upgrade to Pro for 300 AI fixes/month, or buy a release credit.",
             upgrade: true,
           },
           { status: 403 }

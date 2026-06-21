@@ -16,7 +16,7 @@ const jsonLd = {
   applicationCategory: "BusinessApplication",
   operatingSystem: "Web",
   description:
-    "Scan music release metadata for ISRC errors, missing credits, and 40+ issues that cost royalties. AI suggests fixes before you submit to your distributor.",
+    "Scan music release metadata for ISRC errors, missing credits, and 60+ issues that cost royalties. AI suggests fixes before you submit to your distributor.",
   url: SITE_URL,
   publisher: { "@type": "Organization", name: "Overlook Strategy" },
   offers: [
@@ -46,11 +46,11 @@ const PILLARS = [
 ];
 
 // Stat blocks for the “what bad metadata costs you” section. Figures are public
-// industry estimates (MLC unmatched royalties; per-artist averages from
-// independent-royalty audits; distributor manual-review windows) — noted below.
+// industry estimates (the MLC's reported unmatched royalties; SoundExchange's
+// unclaimed-royalty range; distributor manual-review windows) — noted below.
 const COST = [
-  { stat: "$561M+", label: "in royalties sit unmatched in the MLC “black box” — growing about $9M every month." },
-  { stat: "~$15,500", label: "in royalties lost per artist, on average, to metadata mistakes." },
+  { stat: "$424M+", label: "in unmatched mechanical royalties sat in the MLC “black box” — songwriter money waiting to be claimed." },
+  { stat: "15–20%", label: "of artist royalties go unclaimed each year because of metadata errors (SoundExchange estimate)." },
   { stat: "1–3 weeks", label: "lost to a single rejected release stuck in distributor review." },
 ];
 
@@ -118,8 +118,9 @@ export default function Home() {
             </h2>
             <p className="text-text-muted leading-relaxed">
               One misspelled name, one missing songwriter, one wrong code — and a stream can&apos;t be
-              matched, so it can&apos;t be paid. The money piles up unclaimed, and after three years it&apos;s
-              handed to the major labels. MetaCheck makes sure it never goes missing in the first place.
+              matched, so it can&apos;t be paid. The money piles up unclaimed, and eventually it&apos;s paid
+              out by market share — mostly to the major publishers. MetaCheck helps make sure yours
+              doesn&apos;t go missing in the first place.
             </p>
           </Reveal>
 
@@ -134,8 +135,8 @@ export default function Home() {
             ))}
           </div>
           <p className="text-[11px] text-text-dim text-center mt-6 max-w-xl mx-auto leading-relaxed">
-            Industry estimates: the MLC&apos;s reported unmatched royalties; per-artist averages from
-            independent-royalty audits; distributor manual-review windows. Your numbers will vary —
+            Industry estimates: the MLC&apos;s reported unmatched royalties; SoundExchange&apos;s
+            unclaimed-royalty range; distributor manual-review windows. Your numbers will vary —
             but the leak is real, and it&apos;s avoidable.
           </p>
         </div>
@@ -151,7 +152,7 @@ export default function Home() {
               This is the actual engine. Search any released song and watch it audit the metadata in real time.
             </p>
             <p className="inline-flex items-center gap-1.5 text-xs text-text-dim mt-4">
-              <IconLock size={13} /> Everything runs in your browser — your unreleased music never leaves your device.
+              <IconLock size={13} /> The validation engine runs in your browser — your metadata only leaves your device if you ask for an AI fix or save a release.
             </p>
           </Reveal>
           <Reveal delay={80}>
@@ -189,7 +190,7 @@ export default function Home() {
               href="/features"
               className="press inline-flex items-center gap-1.5 px-5 py-3 border border-border-bright rounded-xl text-sm font-medium text-text hover:border-text-muted transition-colors"
             >
-              See everything it checks — all 40+ rules <IconArrowRight size={16} />
+              See everything it checks — all 60+ rules <IconArrowRight size={16} />
             </Link>
           </Reveal>
         </div>
@@ -200,13 +201,13 @@ export default function Home() {
         <div className="mx-auto max-w-5xl px-6">
           <Reveal className="text-center mb-16">
             <p className="eyebrow mb-3">How it works</p>
-            <h2 className="font-display text-4xl md:text-5xl tracking-tight">Three steps. Two seconds. Zero rejections.</h2>
+            <h2 className="font-display text-4xl md:text-5xl tracking-tight">Three steps. Two seconds. Fewer rejections.</h2>
           </Reveal>
 
           <div className="grid md:grid-cols-3 gap-10">
             {[
               { step: "1", title: "Paste or upload", desc: "Enter tracks by hand, paste from a sheet, or drop your distributor CSV." },
-              { step: "2", title: "Instant scan", desc: "40+ rules run in under two seconds, graded by severity with exact fixes." },
+              { step: "2", title: "Instant scan", desc: "60+ rules run in under two seconds, graded by severity with exact fixes." },
               { step: "3", title: "Fix & export", desc: "Apply AI fixes with one click and export a clean, distributor-ready file." },
             ].map((s, i) => (
               <Reveal key={s.step} delay={i * 90} className="text-center md:text-left">
@@ -234,18 +235,18 @@ export default function Home() {
             {[
               {
                 name: "Free", price: "$0", interval: "",
-                features: ["3 releases per month", "All 40+ validation rules", "1 AI fix per month", "Artwork checks", "Sync-Ready score", "CSV export"],
+                features: ["3 releases per month", "All 60+ validation rules", "1 AI fix per month", "Artwork checks", "Sync-Ready score", "CSV export"],
                 cta: "Get started free", href: "/sign-up", highlight: false,
               },
               {
-                name: "Pro", price: "$9", interval: "/mo · or $49/yr",
+                name: "Pro", price: "$9", interval: "/mo · or $49/yr — save 55%",
                 features: ["Unlimited releases", "One-click AI fixes", "Release history", "PDF reports", "Distributor profiles", "Priority support"],
-                cta: "Start with Pro", href: "/sign-up", highlight: true,
+                cta: "Start with Pro", href: "/sign-up?redirect_url=%2Fapi%2Fcheckout%3Ftier%3Dpro", highlight: true,
               },
               {
-                name: "Label", price: "$29", interval: "/mo · or $290/yr",
+                name: "Label", price: "$29", interval: "/mo · or $290/yr — save 17%",
                 features: ["Everything in Pro", "Batch / catalog mode", "5 team members", "API access", "Custom rules"],
-                cta: "Start with Label", href: "/sign-up", highlight: false,
+                cta: "Start with Label", href: "/sign-up?redirect_url=%2Fapi%2Fcheckout%3Ftier%3Dteam", highlight: false,
               },
             ].map((t, i) => (
               <Reveal key={t.name} delay={i * 80}>

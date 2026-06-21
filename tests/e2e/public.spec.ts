@@ -5,9 +5,9 @@ test.describe("Landing page", () => {
     await page.goto("/");
     await expect(page.getByRole("heading", { level: 1 })).toContainText(/gets paid/i);
     await expect(page.getByText(/unpaid royalties/i).first()).toBeVisible();
-    // Cost section numbers
-    await expect(page.getByText("$561M+")).toBeVisible();
-    await expect(page.getByText(/~\$15,500/)).toBeVisible();
+    // Cost section numbers (sourced figures)
+    await expect(page.getByText("$424M+")).toBeVisible();
+    await expect(page.getByText(/15.20%/)).toBeVisible();
     // Primary CTA points to sign-up
     const cta = page.getByRole("link", { name: /check my release free/i }).first();
     await expect(cta).toHaveAttribute("href", "/sign-up");

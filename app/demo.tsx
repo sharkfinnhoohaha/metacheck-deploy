@@ -1,12 +1,25 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { validateTrack, getGrade as computeGrade } from "@/lib/validation/rules";
 import { preflightVerdict } from "@/lib/validation/permanence";
 import type { TrackMeta, ValidationResult, AiFix } from "@/lib/validation/types";
 import { resolveResultFieldKey } from "@/lib/validation/fieldKeys";
 import { IconSearch, IconSparkles, IconCheck, IconArrowRight, IconLock } from "./_components/icons";
+
+// Free live lookups before the public demo nudges the visitor to sign up. The
+// live song lookup is the core paid value, so the demo proves it's real on a few
+// tracks, then gates. (Server-side IP abuse limiting lives in the search route.)
+const DEMO_LOOKUP_LIMIT = 3;
+const LOOKUPS_KEY = "metacheck_demo_lookups";
+
+// Fields a public iTunes/Apple catalog lookup can actually surface. We ONLY audit
+// these so the demo never reports false "missing songwriters/producers/copyright"
+// issues on an already-released song — those credits aren't retrievable from a
+// public lookup, so flagging them as problems would be misleading. (ISRC is added
+// only when the lookup actually returned one — see validate() below.)
+const PUBLIC_FIELDS = new Set(["Title", "Artist", "Album", "Genre", "Duration", "Release Date"]);
 
 // Shape of a track returned by the iTunes-backed /api/music/search endpoint.
 type SearchItem = {
@@ -21,8 +34,15 @@ type SearchItem = {
   artwork?: string;
 };
 
+// Run the real engine, then keep only the checks a public lookup can honestly
+// make. ISRC checks are kept only when the lookup actually returned an ISRC —
+// otherwise we don't know it (the released song surely has one) and flagging it
+// "missing" would be a false alarm.
 function validate(t: TrackMeta): ValidationResult[] {
-  return validateTrack(t);
+  const hasIsrc = !!t.isrc?.trim();
+  return validateTrack(t).filter(
+    (r) => PUBLIC_FIELDS.has(r.field) || (hasIsrc && r.field === "ISRC")
+  );
 }
 
 function grade(results: ValidationResult[]) {
@@ -57,6 +77,17 @@ export function LiveDemo() {
   // The public demo is anonymous, so /api/ai/fix serves deterministic rule-based
   // fixes (source: "rules"). Surface that honestly + nudge to sign up for real AI.
   const [aiRanRules, setAiRanRules] = useState(false);
+  const [lookupsUsed, setLookupsUsed] = useState(0);
+
+  // Restore the visitor's lookup count so the limit survives reloads.
+  useEffect(() => {
+    try {
+      const n = parseInt(localStorage.getItem(LOOKUPS_KEY) || "0", 10);
+      if (Number.isFinite(n) && n > 0) setLookupsUsed(n);
+    } catch { /* localStorage unavailable — start fresh */ }
+  }, []);
+
+  const remaining = Math.max(0, DEMO_LOOKUP_LIMIT - lookupsUsed);
 
   const handleSearch = async (val: string) => {
     setQuery(val);
@@ -78,19 +109,25 @@ export function LiveDemo() {
   };
 
   const selectTrack = (item: SearchItem) => {
+    // Out of free lookups — the input is disabled and the gate is shown, but
+    // guard here too so nothing slips through.
+    if (remaining <= 0) {
+      setSearchResults([]);
+      setQuery("");
+      return;
+    }
+    // Build the track from ONLY what the public lookup actually returned. We no
+    // longer fabricate songwriters/producers/copyright/explicit/language — those
+    // aren't knowable from a catalog lookup, and inventing blanks made the demo
+    // falsely flag released songs as missing credits.
     const track: TrackMeta = {
       title: item.title,
       artist: item.artist,
       album: item.album,
-      genre: item.genre || "Pop",
-      releaseDate: item.releaseDate?.split("T")[0] || new Date().toISOString().split("T")[0],
-      duration: item.duration || "0",
-      isrc: item.isrc || "", // Often empty from iTunes
-      songwriters: "", // Placeholder to trigger validation
-      producers: "",
-      copyright: `℗ ${new Date().getFullYear()} ${item.artist}`,
-      explicit: "false",
-      language: "en",
+      genre: item.genre || "",
+      releaseDate: item.releaseDate?.split("T")[0] || "",
+      duration: item.duration || "",
+      isrc: item.isrc || "", // Often empty from iTunes — handled honestly in validate()
     };
     setCurrentTrack(track);
     setResults(validate(track));
@@ -98,6 +135,14 @@ export function LiveDemo() {
     setQuery("");
     setAiFixes([]);
     setAiRanRules(false);
+
+    // Count this lookup toward the free limit (persisted across reloads).
+    const next = lookupsUsed + 1;
+    setLookupsUsed(next);
+    try {
+      localStorage.setItem(LOOKUPS_KEY, String(next));
+    } catch { /* localStorage unavailable — limit is best-effort */ }
+
     // Hand the checked release off to /validate so signup continues, not restarts.
     try {
       localStorage.setItem("metacheck_pending_release", JSON.stringify({ track, ts: Date.now() }));
@@ -109,7 +154,7 @@ export function LiveDemo() {
     setIsFixing(true);
     try {
       // Note: This calls our AI fix route.
-      // We'll modify the route to allow demo mode bypass if needed, 
+      // We'll modify the route to allow demo mode bypass if needed,
       // or just assume the user is testing in a way that works.
       const res = await fetch("/api/ai/fix", {
         method: "POST",
@@ -173,8 +218,13 @@ export function LiveDemo() {
             type="text"
             value={query}
             onChange={(e) => handleSearch(e.target.value)}
-            placeholder="Search any song to audit its metadata (e.g. 'The Weeknd Blinding Lights')"
-            className="w-full px-4 py-4 bg-bg border border-border-bright rounded-xl text-base text-text placeholder:text-text-dim focus:outline-none focus:border-accent focus:ring-4 focus:ring-accent/10 transition-all shadow-inner"
+            disabled={remaining <= 0}
+            placeholder={
+              remaining <= 0
+                ? "Free demo checks used — sign up to keep checking"
+                : "Search any song to audit its metadata (e.g. 'The Weeknd Blinding Lights')"
+            }
+            className="w-full px-4 py-4 bg-bg border border-border-bright rounded-xl text-base text-text placeholder:text-text-dim focus:outline-none focus:border-accent focus:ring-4 focus:ring-accent/10 transition-all shadow-inner disabled:opacity-50 disabled:cursor-not-allowed"
           />
           {isSearching && (
             <div className="absolute right-4 top-3.5">
@@ -182,6 +232,11 @@ export function LiveDemo() {
             </div>
           )}
         </div>
+        {remaining > 0 && (
+          <p className="mt-2 text-[11px] text-text-dim">
+            {remaining} free {remaining === 1 ? "check" : "checks"} left · audits public catalog metadata
+          </p>
+        )}
 
         {/* Dropdown results */}
         {searchResults.length > 0 && (
@@ -208,14 +263,34 @@ export function LiveDemo() {
       {/* Results area */}
       <div className="px-5 pb-5 min-h-[350px]">
         {!currentTrack ? (
-          <div className="flex items-center justify-center h-[300px] text-text-dim text-sm">
-            <div className="text-center">
-              <div className="w-16 h-16 rounded-full bg-accent/5 text-accent-bright/50 flex items-center justify-center mx-auto mb-6">
-                <IconSearch size={28} />
+          remaining <= 0 ? (
+            <div className="flex items-center justify-center h-[300px]">
+              <div className="text-center max-w-xs">
+                <div className="w-14 h-14 rounded-full bg-accent/10 text-accent-bright flex items-center justify-center mx-auto mb-5">
+                  <IconSparkles size={26} />
+                </div>
+                <p className="text-sm font-semibold text-text mb-1">You&apos;ve used your {DEMO_LOOKUP_LIMIT} free demo checks</p>
+                <p className="text-xs text-text-muted mb-5 leading-relaxed">
+                  Sign up free to keep checking — and to audit your own <span className="text-text">unreleased</span> release: songwriters, splits, copyright, explicit and more that a public lookup can&apos;t see.
+                </p>
+                <Link
+                  href="/sign-up"
+                  className="press glow-teal inline-flex items-center gap-1.5 px-5 py-2.5 bg-accent text-white rounded-lg text-sm font-semibold hover:bg-accent-bright transition-colors"
+                >
+                  Sign up free <IconArrowRight size={15} />
+                </Link>
               </div>
-              <p className="text-xs text-text-dim">Search for any track to run a metadata audit</p>
             </div>
-          </div>
+          ) : (
+            <div className="flex items-center justify-center h-[300px] text-text-dim text-sm">
+              <div className="text-center">
+                <div className="w-16 h-16 rounded-full bg-accent/5 text-accent-bright/50 flex items-center justify-center mx-auto mb-6">
+                  <IconSearch size={28} />
+                </div>
+                <p className="text-xs text-text-dim">Search for any track to run a metadata audit</p>
+              </div>
+            </div>
+          )
         ) : (
           <div className="mt-3">
             {/* Grade header */}
@@ -286,7 +361,7 @@ export function LiveDemo() {
                   <div className="w-12 h-12 rounded-full bg-green/10 text-green flex items-center justify-center mx-auto mb-3">
                     <IconCheck size={22} />
                   </div>
-                  <p className="text-sm text-text-muted">No issues found. Metadata is perfectly formatted.</p>
+                  <p className="text-sm text-text-muted">No issues in the public metadata — this release is already live, so its catalog data is clean.</p>
                 </div>
               ) : (
                 [...criticals, ...warnings, ...suggestions].map((r, i) => {
@@ -316,10 +391,16 @@ export function LiveDemo() {
               )}
             </div>
 
+            {/* Honest scope note — what a public lookup can and can't see. */}
+            <p className="mt-4 pt-3 border-t border-border text-[11px] text-text-dim leading-relaxed">
+              This demo audits only the metadata a public catalog exposes (title, artist, genre, duration, release date, ISRC).
+              Songwriters, splits, copyright, explicit and language live in your distributor file — check your own release to audit those before you submit.
+            </p>
+
             {/* Conversion bridge — the "aha" just happened; carry the user into
                 sign-up. The checked release is already stashed in localStorage
                 (selectTrack), so /validate resumes it after auth. */}
-            <div className="mt-5 pt-5 border-t border-border flex flex-col sm:flex-row sm:items-center gap-3">
+            <div className="mt-4 pt-4 border-t border-border flex flex-col sm:flex-row sm:items-center gap-3">
               <div className="flex-1 min-w-0">
                 <p className="text-sm text-text font-medium">
                   {results?.length === 0

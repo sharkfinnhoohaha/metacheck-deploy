@@ -41,9 +41,10 @@ export default function PrivacyPage() {
         <section>
           <h2 className="text-text font-semibold mb-2">AI features</h2>
           <p>
-            When you request an AI fix or artwork analysis, the relevant metadata (and, for artwork
-            QC, the image) is sent to Google&apos;s Gemini API to generate suggestions. We use paid
-            Google AI tiers, under which Google does not use your content to train its models.
+            When you request an AI fix or readiness brief, the relevant release metadata is sent to
+            Google&apos;s Gemini API to generate suggestions. We use paid Google AI tiers, under which
+            Google does not use your content to train its models. Artwork QC — including the optional
+            text scan — runs entirely in your browser; your cover image is never uploaded.
           </p>
         </section>
 
@@ -55,7 +56,7 @@ export default function PrivacyPage() {
         <section>
           <h2 className="text-text font-semibold mb-2">Your choices</h2>
           <p>
-            You can delete saved releases at any time, and deleting your account removes your data.
+            Deleting your account permanently removes your saved releases and all associated data.
             For requests, contact{" "}
             <a href="mailto:hello@metacheck.app" className="text-accent-bright hover:underline">hello@metacheck.app</a>.
           </p>

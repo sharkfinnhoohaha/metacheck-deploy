@@ -2,6 +2,7 @@ import { auth, currentUser } from "@clerk/nextjs/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import Link from "next/link";
 import { UpgradePlans } from "./_components/UpgradePlans";
+import { ApiKeys } from "./_components/ApiKeys";
 
 export default async function SettingsPage({
   searchParams,
@@ -93,6 +94,14 @@ export default async function SettingsPage({
         </div>
       </section>
 
+      {/* API access (Label tier) */}
+      {tier === "team" && (
+        <section className="mb-10">
+          <h2 className="eyebrow mb-4">API access</h2>
+          <ApiKeys />
+        </section>
+      )}
+
       {/* Upgrade options (free tier) */}
       {tier === "free" && (
         <section className="mb-10">
@@ -104,7 +113,7 @@ export default async function SettingsPage({
             <div>
               <h3 className="font-semibold text-text">Just one release?</h3>
               <p className="text-sm text-text-muted mt-1">
-                Buy a single <span className="text-text">release credit</span> — unlock save, AI fixes and export
+                Buy a single <span className="text-text">release credit</span> — unlock save and AI fixes
                 for one release. No subscription.
               </p>
             </div>
