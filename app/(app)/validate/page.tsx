@@ -8,6 +8,7 @@ import { PROFILES, getProfile } from "@/lib/validation/profiles";
 import { checkArtworkFile, scanArtworkText } from "@/lib/validation/artwork";
 import { checkSyncReadiness, CATEGORY_LABEL, type SyncCategory } from "@/lib/validation/sync";
 import { resolveResultFieldKey } from "@/lib/validation/fieldKeys";
+import { applyCustomRules, type RuleConfig } from "@/lib/validation/custom";
 import { classifyPermanence, preflightVerdict, type PermanenceLevel } from "@/lib/validation/permanence";
 import { diffMigration } from "@/lib/validation/migration";
 import { checkAudioFile, type AudioReport } from "@/lib/audio/check";
@@ -854,10 +855,10 @@ function groupReleases(tracks: TrackMeta[]): Record<string, TrackMeta[]> {
 // Group a flat catalog into releases and validate each against the given
 // profile. Shared by the CSV parse and the profile-switcher so changing the
 // distributor re-grades the catalog in place instead of forcing a re-upload.
-function buildBatch(flatTracks: TrackMeta[], profile: ReturnType<typeof getProfile>): BatchRelease[] {
+function buildBatch(flatTracks: TrackMeta[], profile: ReturnType<typeof getProfile>, cfg?: RuleConfig | null): BatchRelease[] {
   return Object.entries(groupReleases(flatTracks)).map(([title, grp]) => {
     const grpTracks = grp.map((t, i) => ({ ...t, trackNumber: t.trackNumber || String(i + 1) }));
-    const res = validateRelease(grpTracks, profile);
+    const res = applyCustomRules(validateRelease(grpTracks, profile), grpTracks, cfg);
     return { title, tracks: grpTracks, results: res, grade: getGrade(res) };
   });
 }
@@ -865,6 +866,10 @@ function buildBatch(flatTracks: TrackMeta[], profile: ReturnType<typeof getProfi
 export default function ValidatePage() {
   const [mode, setMode] = useState<Mode>("single");
   const [profileId, setProfileId] = useState<string>("generic");
+  // Label-account custom rule config (null = none / non-Label → engine defaults).
+  // Held in a ref too so validation callbacks read the latest without re-binding.
+  const [, setRuleConfig] = useState<RuleConfig | null>(null);
+  const ruleConfigRef = useRef<RuleConfig | null>(null);
   const [tracks, setTracks] = useState<TrackMeta[]>([emptyTrack(1)]);
   const [results, setResults] = useState<(ValidationResult & { _fixed?: boolean })[] | null>(null);
   const [fixedTracks, setFixedTracks] = useState<TrackMeta[]>([]);
@@ -910,12 +915,28 @@ export default function ValidatePage() {
 
   // Load a track straight into the single-track form AND grade it immediately, so
   // the user sees a result without a separate "Run" click.
+  // Load the Label account's custom rule config once. Null for non-Label / none,
+  // so applyCustomRules is the identity for everyone else (zero blast radius).
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/rule-config")
+      .then((r) => r.json())
+      .then((j) => {
+        if (cancelled) return;
+        const cfg = (j?.data?.config ?? null) as RuleConfig | null;
+        ruleConfigRef.current = cfg;
+        setRuleConfig(cfg);
+      })
+      .catch(() => { /* no custom rules — default engine behavior */ });
+    return () => { cancelled = true; };
+  }, []);
+
   const loadAndGrade = useCallback((track: TrackMeta) => {
     const t = { ...emptyTrack(1), ...track };
     setMode("single");
     setTracks([t]);
     setFixedTracks([t]);
-    const raw = validateRelease([t], getProfile(profileId));
+    const raw = applyCustomRules(validateRelease([t], getProfile(profileId)), [t], ruleConfigRef.current);
     setResults(raw.map((r) => ({ ...r, _fixed: false })));
     setBatch(null);
     setAiFixes(null);
@@ -1002,7 +1023,7 @@ export default function ValidatePage() {
           // Catalog mode: split into releases and validate each independently.
           // Retain the flat rows so a later profile switch can re-grade in place.
           setTracks(mapped.map((t, i) => ({ ...t, trackNumber: t.trackNumber || String(i + 1) })));
-          setBatch(buildBatch(mapped, getProfile(profileId)));
+          setBatch(buildBatch(mapped, getProfile(profileId), ruleConfigRef.current));
           setExpandedBatch(new Set());
         } else {
           setTracks(mapped.map((t, i) => ({ ...t, trackNumber: t.trackNumber || String(i + 1) })));
@@ -1021,7 +1042,7 @@ export default function ValidatePage() {
     setIsRunning(true);
     await new Promise((resolve) => setTimeout(resolve, 0));
     try {
-      const raw = validateRelease(tracks, getProfile(profileId));
+      const raw = applyCustomRules(validateRelease(tracks, getProfile(profileId)), tracks, ruleConfigRef.current);
       setResults(raw.map((r) => ({ ...r, _fixed: false })));
       setFixedTracks([...tracks]);
       setAiFixes(null);
@@ -1107,7 +1128,7 @@ export default function ValidatePage() {
     const updated = tracks.map((t, i) => i === idx ? { ...t, [fieldKey]: result.suggestion! } : t);
     setFixedTracks(updated);
     setTracks(updated);
-    setResults(validateRelease(updated, getProfile(profileId)).map((r) => ({ ...r, _fixed: false })));
+    setResults(applyCustomRules(validateRelease(updated, getProfile(profileId)), updated, ruleConfigRef.current).map((r) => ({ ...r, _fixed: false })));
     setSavedId(null); // release changed — any prior save is now stale
   };
 
@@ -1131,7 +1152,7 @@ export default function ValidatePage() {
     });
     setFixedTracks(updated);
     setTracks(updated);
-    setResults(validateRelease(updated, getProfile(profileId)).map((r) => ({ ...r, _fixed: false })));
+    setResults(applyCustomRules(validateRelease(updated, getProfile(profileId)), updated, ruleConfigRef.current).map((r) => ({ ...r, _fixed: false })));
     setSavedId(null); // release changed — any prior save is now stale
   };
 
@@ -1201,7 +1222,7 @@ export default function ValidatePage() {
     // Re-grade so the grade card, counts and issue list reflect the applied fix
     // (one AI fix can clear several related rules — re-running the engine is the
     // robust way to keep the results in sync).
-    setResults(validateRelease(updated, getProfile(profileId)).map((r) => ({ ...r, _fixed: false })));
+    setResults(applyCustomRules(validateRelease(updated, getProfile(profileId)), updated, ruleConfigRef.current).map((r) => ({ ...r, _fixed: false })));
     setSavedId(null); // release changed — any prior save is now stale
   };
 
@@ -1296,7 +1317,7 @@ export default function ValidatePage() {
             setResults(null);
             // In catalog mode, re-grade the already-loaded catalog under the new
             // ruleset instead of forcing a full re-upload.
-            setBatch(mode === "batch" && tracks.length ? buildBatch(tracks, getProfile(id)) : null);
+            setBatch(mode === "batch" && tracks.length ? buildBatch(tracks, getProfile(id), ruleConfigRef.current) : null);
           }}
           className="px-3 py-2 rounded-lg bg-surface border border-border text-sm text-text focus:outline-none focus:border-accent transition-colors"
         >

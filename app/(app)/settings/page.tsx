@@ -102,6 +102,24 @@ export default async function SettingsPage({
         </section>
       )}
 
+      {/* Custom rules (Label tier) */}
+      {tier === "team" && (
+        <section className="mb-10">
+          <h2 className="eyebrow mb-4">Custom rules</h2>
+          <div className="rounded-xl border border-border bg-bg-card p-6 flex flex-col sm:flex-row sm:items-center gap-3">
+            <p className="text-sm text-text-muted flex-1">
+              Tune the validation engine to your label&apos;s standards — adjust any built-in rule or add your own checks.
+            </p>
+            <Link
+              href="/settings/rules"
+              className="press shrink-0 inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-accent/10 border border-accent/20 text-accent-bright text-sm font-semibold hover:bg-accent/20 transition-colors"
+            >
+              Edit rules →
+            </Link>
+          </div>
+        </section>
+      )}
+
       {/* Upgrade options (free tier) */}
       {tier === "free" && (
         <section className="mb-10">
