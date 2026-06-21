@@ -2,6 +2,7 @@ import { auth, currentUser } from "@clerk/nextjs/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import Link from "next/link";
 import { UpgradePlans } from "./_components/UpgradePlans";
+import { ApiKeys } from "./_components/ApiKeys";
 
 export default async function SettingsPage({
   searchParams,
@@ -92,6 +93,14 @@ export default async function SettingsPage({
           )}
         </div>
       </section>
+
+      {/* API access (Label tier) */}
+      {tier === "team" && (
+        <section className="mb-10">
+          <h2 className="eyebrow mb-4">API access</h2>
+          <ApiKeys />
+        </section>
+      )}
 
       {/* Upgrade options (free tier) */}
       {tier === "free" && (
