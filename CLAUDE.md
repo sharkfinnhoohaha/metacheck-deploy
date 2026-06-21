@@ -14,7 +14,88 @@ The core metadata-checking feature was audited and substantially expanded on
 "Robinhood-style" redesign + a Playwright e2e suite, an audit-follow-ups bug
 pass, and an **onboarding/paywall funnel pass** shipped — see the **20 June 2026**
 sections immediately below. On 20 June 2026 a **strategic pivot** began — see the
-**Pivot** section immediately below.
+**Pivot** section immediately below. Also on 20–21 June 2026: a multi-agent
+**promise audit + honesty fixes** and **funnel value wins** (both deployed), and
+the **Label ($29) tier built out** — Phases 1/2/4 merged, Phase 3 pending — see
+**Label tier build + promise audit** immediately below.
+
+---
+
+## 20–21 June 2026 — Label tier build + promise audit + honesty fixes
+
+Shipped to `main` (Vercel production) unless noted. Triggered by "make sure the
+demo works and isn't misleading," then "make sure we aren't making false promises
+and that all features actually work," then "build the Label tier."
+
+### Promise audit + honesty fixes (deployed)
+A multi-agent audit inventoried **222 customer-facing claims** and adversarially
+verified each against the code (37 gaps found). Copy-only honesty fixes shipped
+(`app/page.tsx`, `app/features/page.tsx`, `app/privacy/page.tsx`, AI route error
+strings):
+- **Stats corrected to citable figures**: `$561M`→**`$424M`** (documented MLC
+  black box), `~$15,500/artist`→**`15–20%` of royalties unclaimed** (SoundExchange);
+  black-box narrative now "market share / major publishers," not "after 3 years →
+  major labels."
+- **"Zero rejections"→"Fewer rejections"** (the Terms disclaim acceptance);
+  **"40+ rules"→"60+"** (61 real rule ids); **"unlimited AI"→"300/mo"**; removed
+  unbacked "DSP-recognized genre matching" / "Editorial-pitch genre fit"; landing
+  privacy line scoped to match `/features` + `/privacy`; privacy now states artwork
+  images are **not** uploaded (client-side OCR).
+- **Honest live demo** (`app/demo.tsx`): stopped fabricating songwriters/producers/
+  copyright/explicit/language on released songs (which produced false "missing
+  credit" criticals); now audits ONLY public-lookup fields (title/artist/album/
+  genre/duration/release-date, ISRC when present); **3 free lookups → sign-up gate**.
+- Full evidence: `AUDIT-promises-2026-06-20.md` (worktree artifact, not committed).
+
+### Funnel value wins (deployed)
+`app/(app)/validate/page.tsx`, `app/page.tsx`, `app/sign-up`:
+- **PDF export button on `/validate`** (was history-only).
+- **Save-wall**: free 3-saves/month limit now shows an in-context upgrade/release-
+  credit card (`SaveWallCard`) instead of a raw `alert()`.
+- **Annual savings** surfaced on pricing (Pro 55% / Label 17%).
+- **Tier-aware CTAs**: "Start with Pro/Label" carry purchase intent through sign-up
+  → `/api/checkout` via `forceRedirectUrl` (open-redirect-guarded); Free unchanged.
+
+### Label ($29 / `team`) tier build
+The Label tier advertised features with **no implementation** (5 seats, API access,
+custom rules) + "Priority support" with no channel. Decision: **build them**. Full
+hardened design + phasing in **`LABEL-TIER-SCOPE.md`** (committed). Internal tier
+stays the single `users.tier === "team"` string; no Clerk Orgs.
+- **Phase 1 — Priority support** (PR #9, MERGED): `005_support.sql` `support_tickets`;
+  `POST /api/support` (server-derived priority, fail-closed spam cap, 503 if
+  unmigrated, best-effort `SUPPORT_WEBHOOK_URL`); `/support` (tier-aware SLA) +
+  `/admin/support` triage inbox; sidebar links.
+- **Phase 2 — API access** (PR #10, MERGED): `006_api_keys.sql` (hashed keys);
+  `lib/apikey.ts` + `lib/api/guard.ts`; `POST /api/v1/validate` (Bearer-auth,
+  Label-gated, per-key rate limit **fail-closed**, same engine, no quota); `/api/keys`
+  CRUD + team-only Settings "API access" card; middleware allowlists `/api/v1/(.*)`.
+  **Deferred Phase 2b**: `/api/v1/fix` (AI-over-API) — needs the AI-fix flow
+  extracted from `/api/ai/fix` first.
+- **Phase 4 — Custom rules** (PR #12, MERGED): `007_rule_configs.sql`;
+  `lib/validation/custom.ts` pure post-processor (**identity for null cfg → non-Label
+  users wholly unaffected**) — severity overrides + declarative required/regex checks,
+  client-side, no DSL; `lib/validation/ruleCatalogue.ts` (60 ids, auto-derived);
+  `/api/rule-config` (Label-gated PUT, rejects unknown ids); `settings/rules` editor.
+  Validate page routes every `validateRelease` through `applyCustomRules`.
+- **Phase 3 — Multi-seat: NOT BUILT (next).** XL, touches the hot `getUserTier`
+  path (effective-tier clamp) + history/releases scoping (the scope's "most likely
+  silent break") + secure invites + a shared-AI-pool RPC. **Ship feature-flagged,
+  last.** Decisions banked: **shared team AI pool** (not 5×1500/mo); **members keep
+  read-only** access to the shared catalog on owner cancel. See `LABEL-TIER-SCOPE.md`.
+
+### ⚠️ Operator steps (REQUIRED — shipped Label features are dormant until done)
+- Run, in Supabase SQL editor (additive/idempotent, safe together):
+  `supabase/migrations/005_support.sql`, `006_api_keys.sql`, `007_rule_configs.sql`.
+- **Upstash must be set in prod** or `/api/v1/validate` returns 503 (intentional —
+  it's the only abuse guard on a no-quota compute endpoint).
+- _(optional)_ `SUPPORT_WEBHOOK_URL` (Slack/Discord) for new-ticket pings.
+
+### Known follow-ups (deferred, not blocking)
+- **Tier-gating leaks** still live: distributor profiles (sold Pro), batch/catalog +
+  Catalog Health (sold Label), release-history detail + PDF export (sold Pro) all
+  currently work for free users; the "3 releases/month" cap only bites on Save, not
+  the scan. Decision deferred — folds into Phase 3's tier work (enforce vs. rebrand).
+- Per-release DELETE endpoint (privacy copy already walked back to account-delete only).
 
 ---
 
