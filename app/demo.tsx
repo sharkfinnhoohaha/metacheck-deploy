@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { validateTrack, getGrade as computeGrade } from "@/lib/validation/rules";
+import { preflightVerdict } from "@/lib/validation/permanence";
 import type { TrackMeta, ValidationResult, AiFix } from "@/lib/validation/types";
 import { resolveResultFieldKey } from "@/lib/validation/fieldKeys";
 import { IconSearch, IconSparkles, IconCheck, IconArrowRight, IconLock } from "./_components/icons";
@@ -193,6 +194,7 @@ export function LiveDemo() {
   };
 
   const g = results ? grade(results) : null;
+  const verdict = results ? preflightVerdict(results) : null;
   const criticals = results?.filter((r) => r.severity === "critical") ?? [];
   const warnings = results?.filter((r) => r.severity === "warning") ?? [];
   const suggestions = results?.filter((r) => r.severity === "suggestion") ?? [];
@@ -300,9 +302,16 @@ export function LiveDemo() {
                   {g!.letter}
                 </div>
                 <div>
-                  <p className="font-semibold text-text">
-                    {g!.letter === "A" ? "Release ready!" : g!.letter === "B" ? "Almost there" : g!.letter === "C" ? "Needs work" : "Major issues found"}
-                  </p>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="font-semibold text-text">
+                      {g!.letter === "A" ? "Release ready!" : g!.letter === "B" ? "Almost there" : g!.letter === "C" ? "Needs work" : "Major issues found"}
+                    </p>
+                    {verdict && verdict.permanentCount > 0 && (
+                      <span className="text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded border bg-red/10 text-red border-red/25">
+                        {verdict.permanentCount} permanent
+                      </span>
+                    )}
+                  </div>
                   <p className="text-xs text-text-dim nums">
                     {criticals.length} critical · {warnings.length} warnings · {suggestions.length} suggestions
                   </p>
