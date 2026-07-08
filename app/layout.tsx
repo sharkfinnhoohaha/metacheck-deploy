@@ -54,7 +54,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           {/* Belt-and-suspenders no-JS fallback for older engines lacking the
               `scripting` media feature — never strand scroll-reveal content. */}
           <noscript>
-            {/* eslint-disable-next-line react/no-danger */}
             <style dangerouslySetInnerHTML={{ __html: ".reveal{opacity:1!important;transform:none!important}" }} />
           </noscript>
         </head>

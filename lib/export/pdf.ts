@@ -4,7 +4,6 @@ import jsPDF from "jspdf";
 
 const TEAL = [13, 148, 136] as const;
 const DARK = [22, 22, 26] as const;
-const TEXT = [232, 230, 227] as const;
 const MUTED = [138, 138, 149] as const;
 
 export function exportPdf(

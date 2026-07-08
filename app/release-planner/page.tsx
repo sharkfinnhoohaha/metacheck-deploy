@@ -23,7 +23,6 @@ export default function ReleasePlannerPage() {
       <SiteNav />
 
       <section className="relative pt-36 pb-12 overflow-hidden">
-        {/* eslint-disable-next-line react/forbid-dom-props */}
         <div className="absolute top-[-10%] left-1/2 -translate-x-1/2 w-[900px] h-[480px] rounded-full pointer-events-none"
           style={{ background: "radial-gradient(ellipse, rgba(13,148,136,0.10) 0%, transparent 70%)" }} />
         <div className="relative mx-auto max-w-2xl px-6 text-center">

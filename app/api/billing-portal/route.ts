@@ -3,7 +3,7 @@ import { createPortalSession } from "@/lib/stripe";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { redirect } from "next/navigation";
 
-export async function POST(req: Request) {
+export async function POST() {
   const { userId } = await auth();
   if (!userId) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });

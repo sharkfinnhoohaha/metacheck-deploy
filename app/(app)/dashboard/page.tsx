@@ -103,7 +103,6 @@ export default async function DashboardPage() {
           </p>
           {validationLimit && (
             <div className="mt-3 h-1.5 rounded-full bg-surface overflow-hidden">
-              {/* eslint-disable-next-line react/forbid-dom-props */}
               <div
                 className="h-full rounded-full bg-accent transition-all"
                 style={{ width: `${Math.min((validations / validationLimit) * 100, 100)}%` }}

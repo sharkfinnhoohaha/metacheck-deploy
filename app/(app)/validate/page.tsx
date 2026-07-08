@@ -353,7 +353,6 @@ function SyncPanel({
     <div className="space-y-5">
       {/* Score header */}
       <div className="flex flex-col sm:flex-row items-center gap-6">
-        {/* eslint-disable-next-line react/forbid-dom-props */}
         <div
           className="relative w-28 h-28 rounded-full shrink-0 grid place-items-center"
           style={{ background: `conic-gradient(${tone.ring} ${r.score * 3.6}deg, var(--color-surface) 0deg)` }}
@@ -383,7 +382,6 @@ function SyncPanel({
                 <span className="text-xs text-text-dim">{b.earned}/{b.possible}</span>
               </div>
               <div className="h-1.5 rounded-full bg-surface overflow-hidden">
-                {/* eslint-disable-next-line react/forbid-dom-props */}
                 <div className="h-full rounded-full bg-accent-bright transition-[width] duration-500" style={{ width: `${pct}%` }} />
               </div>
             </div>

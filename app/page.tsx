@@ -63,14 +63,12 @@ export default function Home() {
 
       {/* ── HERO ────────────────────────────────────────── */}
       <section className="relative pt-44 pb-28 overflow-hidden">
-        {/* eslint-disable-next-line react/forbid-dom-props */}
         <div className="absolute inset-0 opacity-[0.035]" style={{
           backgroundImage: `linear-gradient(var(--color-border) 1px, transparent 1px), linear-gradient(90deg, var(--color-border) 1px, transparent 1px)`,
           backgroundSize: "72px 72px",
           maskImage: "radial-gradient(ellipse 80% 60% at 50% 0%, black, transparent 75%)",
           WebkitMaskImage: "radial-gradient(ellipse 80% 60% at 50% 0%, black, transparent 75%)",
         }} />
-        {/* eslint-disable-next-line react/forbid-dom-props */}
         <div className="absolute top-[-10%] left-1/2 -translate-x-1/2 w-[900px] h-[600px] rounded-full pointer-events-none"
           style={{ background: "radial-gradient(ellipse, rgba(13,148,136,0.10) 0%, transparent 70%)" }} />
 

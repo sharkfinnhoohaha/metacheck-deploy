@@ -248,6 +248,8 @@ export function LiveDemo() {
                 className="w-full px-4 py-3 flex items-center gap-3 hover:bg-surface text-left transition-colors border-b border-border last:border-0"
               >
                 {item.artwork && (
+                  // Small decorative thumbnail in demo data; next/image not warranted here.
+                  // eslint-disable-next-line @next/next/no-img-element
                   <img src={item.artwork} alt="" className="w-10 h-10 rounded-md object-cover" />
                 )}
                 <div className="min-w-0">
